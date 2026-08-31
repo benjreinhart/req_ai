@@ -10,12 +10,10 @@ The current API is intentionally lower-level: callers configure adapters under `
 
 ## Design goals
 
-- **Provider-native by default.** Requests, responses, and streamed events should retain the provider's shape so callers can use provider-specific features without waiting for ReqAI to model them.
-- **Application-owned abstractions.** ReqAI does not define a universal LLM request or response. Applications and higher-level libraries should be able to introduce the representations that fit their supported providers and use cases.
-- **Composable provider adapters.** The provider boundary should make it easy to translate application-defined inputs into provider-native requests while reusing ReqAI's built-in transport details.
+- **Provider-native by default.** Requests, responses, and streamed events should retain the provider's shape so callers can use provider-specific features without clunky escape hatches or waiting for ReqAI to support them.
+- **Extensible abstractions.** ReqAI does not define a universal LLM request or response. However, it supports a simple yet elegant pattern that applications and higher-level libraries can use to build this layer on top.
 - **A consistent execution boundary.** Generation and streaming should have predictable control flow even when the data passing through them remains provider-specific.
 - **Observability without accidental disclosure.** Model calls should be easy to monitor, while secrets and potentially sensitive request or response content are excluded unless deliberately recorded.
-- **Forward-compatible escape hatches.** Unknown provider fields should pass through without lossy conversion so applications can adopt new API features as providers release them.
 - **A small, approachable core.** Prefer simple values and focused adapters for well-supported APIs over a large model catalog or a deep hierarchy of custom types and behaviours.
 
 ## Custom request representations
