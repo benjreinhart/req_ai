@@ -4,9 +4,53 @@ defmodule ReqAITest do
   alias ReqAI.Provider.OpenAI
   alias ReqAITest.ReqStubs
 
+  defmodule UnifiedRequest do
+    defstruct [:model, :prompt, provider_options: %{}]
+  end
+
+  defmodule PreparingOpenAI do
+    @behaviour ReqAI.Provider
+
+    @impl true
+    def prepare_request(%ReqAITest.UnifiedRequest{} = request, opts) do
+      send(self(), {:prepare_request, opts[:stream], opts[:request_context]})
+
+      %{model: request.model, input: request.prompt}
+      |> Map.merge(Map.get(request.provider_options, :openai, %{}))
+    end
+
+    @impl true
+    defdelegate build(req, request, opts), to: ReqAI.Provider.OpenAI
+  end
+
   @request %{model: "gpt-5.4", input: "Say hello."}
 
   describe "stream/4" do
+    test "prepares application input with streaming enabled before building the request" do
+      provider =
+        ReqStubs.stub_provider_response_stream(
+          {PreparingOpenAI, [request_context: :test]},
+          headers: [{"content-type", "application/octet-stream"}],
+          body: [{:data, "Hello!"}]
+        )
+
+      request = %UnifiedRequest{model: "gpt-5.4", prompt: "Say hello."}
+
+      assert {:ok, _response, ["Hello!"]} =
+               ReqAI.stream(provider, request, [], fn chunk, _response, chunks ->
+                 {:cont, chunks ++ [chunk]}
+               end)
+
+      assert_receive {:prepare_request, true, :test}
+      assert_receive {:request, request}
+
+      assert request.body |> IO.iodata_to_binary() |> JSON.decode!() == %{
+               "input" => "Say hello.",
+               "model" => "gpt-5.4",
+               "stream" => true
+             }
+    end
+
     test "builds a streaming request and emits decoded SSE events" do
       provider =
         ReqStubs.stub_provider_response_stream(
@@ -116,6 +160,31 @@ defmodule ReqAITest do
   end
 
   describe "generate/2" do
+    test "prepares application input with streaming disabled before building the request" do
+      provider =
+        ReqStubs.stub_provider_response_json(
+          {PreparingOpenAI, [request_context: :test]},
+          body: %{"status" => "completed"}
+        )
+
+      request = %UnifiedRequest{
+        model: "gpt-5.4",
+        prompt: "Say hello.",
+        provider_options: %{openai: %{temperature: 0.5}}
+      }
+
+      assert {:ok, _response} = ReqAI.generate(provider, request)
+      assert_receive {:prepare_request, false, :test}
+      assert_receive {:request, request}
+
+      assert request.body |> IO.iodata_to_binary() |> JSON.decode!() == %{
+               "input" => "Say hello.",
+               "model" => "gpt-5.4",
+               "stream" => false,
+               "temperature" => 0.5
+             }
+    end
+
     test "returns a successful response" do
       response_body = %{
         "id" => "resp_123",

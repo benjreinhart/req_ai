@@ -12,10 +12,10 @@ defmodule ReqAI do
   """
   @spec generate(
           provider :: Provider.t(),
-          request :: map() | keyword()
+          request :: term()
         ) :: {:ok, Req.Response.t()} | {:error, Req.Response.t()} | {:error, Exception.t()}
-  def generate(%Provider{module: provider, req: req, opts: opts}, request) do
-    req = provider.build(req, request, Keyword.put(opts, :stream, false))
+  def generate(%Provider{} = provider, request) do
+    req = build_request(provider, request, false)
 
     case Req.request(req) do
       {:ok, %Req.Response{status: status} = response} when status in 200..299 ->
@@ -51,7 +51,7 @@ defmodule ReqAI do
   """
   @spec stream(
           provider :: Provider.t(),
-          request :: map() | keyword(),
+          request :: term(),
           acc,
           fun :: (term(), Req.Response.t(), acc -> {:cont, acc} | {:halt, acc})
         ) ::
@@ -59,9 +59,9 @@ defmodule ReqAI do
           | {:error, Req.Response.t(), acc}
           | {:error, Exception.t(), Req.Response.t(), acc}
         when acc: term()
-  def stream(%Provider{module: provider, req: req, opts: opts}, request, acc, fun)
+  def stream(%Provider{} = provider, request, acc, fun)
       when is_function(fun, 3) do
-    req = provider.build(req, request, Keyword.put(opts, :stream, true))
+    req = build_request(provider, request, true)
 
     wrapped_fun =
       fn
@@ -90,6 +90,27 @@ defmodule ReqAI do
 
       {:error, exception, response, {acc, _error_body}} ->
         {:error, exception, response, acc}
+    end
+  end
+
+  defp build_request(%Provider{module: provider, req: req, opts: opts}, request, stream) do
+    opts = Keyword.put(opts, :stream, stream)
+    request = prepare_request(provider, request, opts)
+    provider.build(req, request, opts)
+  end
+
+  defp prepare_request(provider, request, opts) do
+    case Code.ensure_loaded(provider) do
+      {:module, ^provider} ->
+        if function_exported?(provider, :prepare_request, 2) do
+          provider.prepare_request(request, opts)
+        else
+          request
+        end
+
+      {:error, reason} ->
+        raise ArgumentError,
+              "could not load provider #{inspect(provider)}: #{inspect(reason)}"
     end
   end
 
