@@ -16,37 +16,42 @@ The current API is intentionally lower-level: callers configure adapters under `
 - **Observability without accidental disclosure.** Model calls should be easy to monitor, while secrets and potentially sensitive request or response content are excluded unless deliberately recorded.
 - **A small, approachable core.** Prefer simple values and focused adapters for well-supported APIs over a large model catalog or a deep hierarchy of custom types and behaviours.
 
-## Custom request representations
+## Custom representations
 
-Providers can implement `prepare_request/2`, which receives the caller's input and the configured provider options before `build/3` constructs the HTTP request. This enables applications to build a shared interface for AI provider requests. You can imagine designing an `%LLMRequest{}` struct and using it for both OpenAI and Anthropic. For example:
+Applications can configure a module implementing the `ReqAI.Translator` behaviour to translate between application values and provider-native requests, responses, and streamed events. Each callback is optional; values remain provider-native when its callback is not implemented.
+
+For example, an application can design an `%LLMRequest{}` struct and translate it for both OpenAI and Anthropic:
 
 ```elixir
-defmodule MyApp.Provider.OpenAI do
-  @behaviour ReqAI.Provider
+defmodule MyApp.Translator.OpenAI do
+  @behaviour ReqAI.Translator
 
   @impl true
-  def prepare_request(%MyApp.LLMRequest{} = request, _opts) do
+  def request(%MyApp.LLMRequest{} = request, _opts) do
     # transform the %LLMRequest{} to what OpenAI expects...
   end
-
-  @impl true
-  defdelegate build(req, request, opts), to: ReqAI.Provider.OpenAI
 end
 
-defmodule MyApp.Provider.Anthropic do
-  @behaviour ReqAI.Provider
+defmodule MyApp.Translator.Anthropic do
+  @behaviour ReqAI.Translator
 
   @impl true
-  def prepare_request(%MyApp.LLMRequest{} = request, _opts) do
+  def request(%MyApp.LLMRequest{} = request, _opts) do
     # transform the %LLMRequest{} to what Anthropic expects...
   end
-
-  @impl true
-  defdelegate build(req, request, opts), to: ReqAI.Provider.Anthropic
 end
 
-openai = ReqAI.Provider.new(MyApp.Provider.OpenAI, model: "gpt-5.6-sol")
-anthropic = ReqAI.Provider.new(MyApp.Provider.Anthropic, model: "claude-haiku-4-5")
+openai =
+  ReqAI.Provider.new(ReqAI.Provider.OpenAI,
+    model: "gpt-5.6-sol",
+    translator: MyApp.Translator.OpenAI
+  )
+
+anthropic =
+  ReqAI.Provider.new(ReqAI.Provider.Anthropic,
+    model: "claude-haiku-4-5",
+    translator: MyApp.Translator.Anthropic
+  )
 
 # Swap out provider/model depending on rate limits,
 # provider availability, user preferences, etc.
@@ -58,7 +63,7 @@ ReqAI.generate(provider, %MyApp.LLMRequest{
 })
 ```
 
-`prepare_request/2` receives the same provider options as `build/3`, including the final `:stream` value selected by `generate/2` or `stream/4`. Its return value must be a provider-native map or keyword list.
+Translator callbacks receive the same provider options as `build/3`, including the final `:stream` value selected by `generate/2` or `stream/4`. `request/2` must return a provider-native map or keyword list. `response/2` receives successful and non-successful responses from `generate/2`, as well as buffered non-successful HTTP responses from `stream/4`. It is not invoked for successful streams: `event/3` translates each decoded event, the caller's accumulator represents the assembled application result, and the completed `Req.Response` retains transport metadata.
 
 ## Installation
 

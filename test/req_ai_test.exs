@@ -8,28 +8,35 @@ defmodule ReqAITest do
     defstruct [:model, :prompt, provider_options: %{}]
   end
 
-  defmodule PreparingOpenAI do
-    @behaviour ReqAI.Provider
+  defmodule RequestTranslator do
+    @behaviour ReqAI.Translator
 
     @impl true
-    def prepare_request(%ReqAITest.UnifiedRequest{} = request, opts) do
-      send(self(), {:prepare_request, opts[:stream], opts[:request_context]})
+    def request(%ReqAITest.UnifiedRequest{} = request, opts) do
+      send(self(), {:translate_request, opts[:stream], opts[:request_context]})
 
       %{model: request.model, input: request.prompt}
       |> Map.merge(Map.get(request.provider_options, :openai, %{}))
     end
+  end
+
+  defmodule ResponseTranslator do
+    @behaviour ReqAI.Translator
 
     @impl true
-    defdelegate build(req, request, opts), to: ReqAI.Provider.OpenAI
+    def response(response, opts), do: {:response, response.status, response.body, opts[:stream]}
+
+    @impl true
+    def event(event, response, opts), do: {:event, event, response.status, opts[:stream]}
   end
 
   @request %{model: "gpt-5.4", input: "Say hello."}
 
   describe "stream/4" do
-    test "prepares application input with streaming enabled before building the request" do
+    test "translates application input with streaming enabled before building the request" do
       provider =
         ReqStubs.stub_provider_response_stream(
-          {PreparingOpenAI, [request_context: :test]},
+          {OpenAI, [translator: RequestTranslator, request_context: :test]},
           headers: [{"content-type", "application/octet-stream"}],
           body: [{:data, "Hello!"}]
         )
@@ -41,7 +48,7 @@ defmodule ReqAITest do
                  {:cont, chunks ++ [chunk]}
                end)
 
-      assert_receive {:prepare_request, true, :test}
+      assert_receive {:translate_request, true, :test}
       assert_receive {:request, request}
 
       assert request.body |> IO.iodata_to_binary() |> JSON.decode!() == %{
@@ -103,6 +110,21 @@ defmodule ReqAITest do
       assert response.status == 200
     end
 
+    test "translates streamed events and preserves the completed HTTP response" do
+      provider =
+        ReqStubs.stub_provider_response_stream(
+          {OpenAI, [translator: ResponseTranslator]},
+          headers: [{"content-type", "application/octet-stream"}],
+          body: [{:data, "Hello!"}]
+        )
+
+      assert {:ok, %Req.Response{status: 200}, [{:event, "Hello!", 200, true}]} =
+               ReqAI.stream(provider, @request, [], fn event, response, events ->
+                 assert %Req.Response{status: 200} = response
+                 {:cont, [event | events]}
+               end)
+    end
+
     test "stream buffers JSON error responses without invoking the callback" do
       provider =
         ReqStubs.stub_provider_response_stream(OpenAI,
@@ -127,6 +149,21 @@ defmodule ReqAITest do
                  "type" => "invalid_request_error"
                }
              }
+    end
+
+    test "translates a buffered non-successful streaming response" do
+      provider =
+        ReqStubs.stub_provider_response_stream(
+          {OpenAI, [translator: ResponseTranslator]},
+          status: 400,
+          headers: [{"content-type", "application/json"}],
+          body: [{:data, ~s({"error":"Invalid request."})}]
+        )
+
+      assert {:error, {:response, 400, %{"error" => "Invalid request."}, true}, :initial} =
+               ReqAI.stream(provider, @request, :initial, fn _event, _response, _acc ->
+                 flunk("callback should not be invoked for a non-2xx response")
+               end)
     end
 
     test "stream buffers plain-text error responses" do
@@ -160,10 +197,10 @@ defmodule ReqAITest do
   end
 
   describe "generate/2" do
-    test "prepares application input with streaming disabled before building the request" do
+    test "translates application input with streaming disabled before building the request" do
       provider =
         ReqStubs.stub_provider_response_json(
-          {PreparingOpenAI, [request_context: :test]},
+          {OpenAI, [translator: RequestTranslator, request_context: :test]},
           body: %{"status" => "completed"}
         )
 
@@ -174,7 +211,7 @@ defmodule ReqAITest do
       }
 
       assert {:ok, _response} = ReqAI.generate(provider, request)
-      assert_receive {:prepare_request, false, :test}
+      assert_receive {:translate_request, false, :test}
       assert_receive {:request, request}
 
       assert request.body |> IO.iodata_to_binary() |> JSON.decode!() == %{
@@ -210,6 +247,17 @@ defmodule ReqAITest do
              }
     end
 
+    test "translates a completed response" do
+      provider =
+        ReqStubs.stub_provider_response_json(
+          {OpenAI, [translator: ResponseTranslator]},
+          body: %{"status" => "completed"}
+        )
+
+      assert {:ok, {:response, 200, %{"status" => "completed"}, false}} =
+               ReqAI.generate(provider, @request)
+    end
+
     test "returns a non-successful response as an error" do
       error_body = %{
         "error" => %{
@@ -227,6 +275,18 @@ defmodule ReqAITest do
       assert {:error, response} = ReqAI.generate(provider, @request)
       assert response.status == 400
       assert response.body == error_body
+    end
+
+    test "translates a non-successful response after classifying it as an error" do
+      provider =
+        ReqStubs.stub_provider_response_json(
+          {OpenAI, [translator: ResponseTranslator]},
+          status: 400,
+          body: %{"error" => "Invalid request."}
+        )
+
+      assert {:error, {:response, 400, %{"error" => "Invalid request."}, false}} =
+               ReqAI.generate(provider, @request)
     end
 
     test "returns request exceptions" do
