@@ -5,7 +5,7 @@ defmodule ReqAI.Provider.Anthropic do
 
   @behaviour ReqAI.Provider
 
-  import ReqAI.Provider.Utils, only: [set_stream: 2]
+  import ReqAI.Provider.Utils, only: [set_stream: 2, fetch_attr: 2]
 
   @url "https://api.anthropic.com/v1/messages"
 
@@ -18,5 +18,19 @@ defmodule ReqAI.Provider.Anthropic do
     |> Req.Request.put_new_option(:base_url, @url)
     |> Req.Request.put_new_header(@version_header, @version)
     |> Req.merge(method: :post, json: set_stream(request, opts[:stream]))
+  end
+
+  @impl true
+  def telemetry({:request, request}, opts) do
+    %{
+      "gen_ai.operation.name" => "chat",
+      "gen_ai.provider.name" => "anthropic",
+      "gen_ai.request.model" => fetch_attr(request, :model),
+      "gen_ai.request.stream" => opts[:stream]
+    }
+  end
+
+  def telemetry({:response, %Req.Response{body: body}}, _opts) do
+    %{"gen_ai.response.model" => fetch_attr(body, :model)}
   end
 end

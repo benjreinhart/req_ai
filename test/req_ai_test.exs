@@ -30,6 +30,13 @@ defmodule ReqAITest do
     def event(event, response, opts), do: {:event, event, response.status, opts[:stream]}
   end
 
+  defmodule RaisingResponseTranslator do
+    @behaviour ReqAI.Translator
+
+    @impl true
+    def response(_response, _opts), do: raise("response translation failed")
+  end
+
   @request %{model: "gpt-5.4", input: "Say hello."}
 
   describe "stream/4" do
@@ -197,6 +204,120 @@ defmodule ReqAITest do
   end
 
   describe "generate/2" do
+    test "emits telemetry for a successful response" do
+      attach_generate_telemetry()
+
+      provider =
+        ReqStubs.stub_provider_response_json(OpenAI,
+          body: %{"model" => "gpt-5.4-2026-08-01", "status" => "completed"}
+        )
+
+      assert {:ok, _response} = ReqAI.generate(provider, @request)
+
+      assert_receive {:telemetry, [:req_ai, :generate, :start],
+                      %{monotonic_time: monotonic_time, system_time: system_time},
+                      %{
+                        "gen_ai.operation.name" => "chat",
+                        "gen_ai.provider.name" => "openai",
+                        "gen_ai.request.model" => "gpt-5.4",
+                        "gen_ai.request.stream" => false
+                      }}
+
+      assert is_integer(monotonic_time)
+      assert is_integer(system_time)
+
+      assert_receive {:telemetry, [:req_ai, :generate, :stop],
+                      %{duration: duration, monotonic_time: monotonic_time},
+                      %{
+                        "gen_ai.operation.name" => "chat",
+                        "gen_ai.provider.name" => "openai",
+                        "gen_ai.request.model" => "gpt-5.4",
+                        "gen_ai.request.stream" => false,
+                        "gen_ai.response.model" => "gpt-5.4-2026-08-01",
+                        "http.response.status_code" => 200,
+                        error: false
+                      }}
+
+      assert is_integer(duration)
+      assert duration >= 0
+      assert is_integer(monotonic_time)
+    end
+
+    test "emits error telemetry for a non-successful HTTP response" do
+      attach_generate_telemetry()
+
+      provider =
+        ReqStubs.stub_provider_response_json(OpenAI,
+          status: 429,
+          body: %{"error" => %{"message" => "Rate limited."}}
+        )
+
+      assert {:error, _response} = ReqAI.generate(provider, @request)
+
+      assert_receive {:telemetry, [:req_ai, :generate, :stop], %{duration: duration},
+                      %{
+                        "error.type" => "429",
+                        "gen_ai.provider.name" => "openai",
+                        "gen_ai.request.model" => "gpt-5.4",
+                        "gen_ai.request.stream" => false,
+                        "http.response.status_code" => 429,
+                        error: true
+                      }}
+
+      assert duration >= 0
+    end
+
+    test "emits error telemetry for a transport error" do
+      attach_generate_telemetry()
+
+      exception = %Req.TransportError{reason: :timeout}
+      provider = ReqStubs.stub_provider_response_exception(OpenAI, exception)
+
+      assert {:error, ^exception} = ReqAI.generate(provider, @request)
+
+      assert_receive {:telemetry, [:req_ai, :generate, :stop], %{duration: duration},
+                      %{
+                        "error.type" => "timeout",
+                        "gen_ai.provider.name" => "openai",
+                        "gen_ai.request.model" => "gpt-5.4",
+                        "gen_ai.request.stream" => false,
+                        error: true
+                      } = metadata}
+
+      refute Map.has_key?(metadata, "gen_ai.response.model")
+      refute Map.has_key?(metadata, "http.response.status_code")
+      assert duration >= 0
+    end
+
+    test "emits standard exception telemetry and reraises" do
+      attach_generate_telemetry()
+
+      provider =
+        ReqStubs.stub_provider_response_json(
+          {OpenAI, [translator: RaisingResponseTranslator]},
+          body: %{"model" => "gpt-5.4-2026-08-01", "status" => "completed"}
+        )
+
+      assert_raise RuntimeError, "response translation failed", fn ->
+        ReqAI.generate(provider, @request)
+      end
+
+      assert_receive {:telemetry, [:req_ai, :generate, :exception],
+                      %{duration: duration, monotonic_time: monotonic_time},
+                      %{
+                        "gen_ai.provider.name" => "openai",
+                        "gen_ai.request.model" => "gpt-5.4",
+                        "gen_ai.request.stream" => false,
+                        kind: :error,
+                        reason: %RuntimeError{message: "response translation failed"},
+                        stacktrace: stacktrace
+                      }}
+
+      assert duration >= 0
+      assert is_integer(monotonic_time)
+      assert is_list(stacktrace)
+    end
+
     test "translates application input with streaming disabled before building the request" do
       provider =
         ReqStubs.stub_provider_response_json(
@@ -296,5 +417,29 @@ defmodule ReqAITest do
 
       assert {:error, ^exception} = ReqAI.generate(provider, @request)
     end
+  end
+
+  defp attach_generate_telemetry do
+    test_pid = self()
+    handler_id = {__MODULE__, test_pid, make_ref()}
+
+    :ok =
+      :telemetry.attach_many(
+        handler_id,
+        [
+          [:req_ai, :generate, :start],
+          [:req_ai, :generate, :stop],
+          [:req_ai, :generate, :exception]
+        ],
+        &__MODULE__.handle_telemetry_event/4,
+        test_pid
+      )
+
+    on_exit(fn -> :telemetry.detach(handler_id) end)
+  end
+
+  @doc false
+  def handle_telemetry_event(event, measurements, metadata, pid) do
+    send(pid, {:telemetry, event, measurements, metadata})
   end
 end

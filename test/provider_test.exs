@@ -8,6 +8,9 @@ defmodule ReqAI.ProviderTest do
 
     @impl true
     def build(req, _request, _opts), do: req
+
+    @impl true
+    def telemetry(_source, _opts), do: %{}
   end
 
   defmodule TestTranslator do
@@ -55,5 +58,30 @@ defmodule ReqAI.ProviderTest do
     assert Req.Request.get_header(provider.req, "x-config") == ["configured"]
     assert Req.Request.get_header(provider.req, "x-option") == ["passed"]
     assert Req.Request.get_header(provider.req, "x-shared") == ["passed"]
+  end
+
+  test "built-in providers return request and response telemetry" do
+    providers = [
+      {ReqAI.Provider.Anthropic, "anthropic", "chat"},
+      {ReqAI.Provider.Gemini, "gcp.gemini", "generate_content"},
+      {ReqAI.Provider.OpenAI, "openai", "chat"},
+      {ReqAI.Provider.OpenRouter, "openrouter", "chat"},
+      {ReqAI.Provider.XAI, "x_ai", "chat"}
+    ]
+
+    Enum.each(providers, fn {provider, provider_name, operation_name} ->
+      assert provider.telemetry({:request, %{model: "request-model"}}, stream: false) == %{
+               "gen_ai.operation.name" => operation_name,
+               "gen_ai.provider.name" => provider_name,
+               "gen_ai.request.model" => "request-model",
+               "gen_ai.request.stream" => false
+             }
+
+      response = Req.Response.new(body: %{"model" => "response-model"})
+
+      assert provider.telemetry({:response, response}, []) == %{
+               "gen_ai.response.model" => "response-model"
+             }
+    end)
   end
 end

@@ -10,8 +10,16 @@ defmodule ReqAI.Provider do
   @doc """
   Builds the HTTP request for a provider-native request body.
   """
-  @callback build(req :: Req.Request.t(), request :: map() | keyword(), opts :: keyword()) ::
-              Req.Request.t()
+  @callback build(
+              req :: Req.Request.t(),
+              request :: map() | keyword(),
+              opts :: keyword()
+            ) :: Req.Request.t()
+
+  @callback telemetry(
+              source :: {:request, map() | keyword()} | {:response, Req.Response.t()},
+              opts :: keyword()
+            ) :: map()
 
   @enforce_keys [:module, :req, :opts]
   defstruct [:module, :req, :opts, :translator]

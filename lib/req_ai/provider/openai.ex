@@ -5,7 +5,7 @@ defmodule ReqAI.Provider.OpenAI do
 
   @behaviour ReqAI.Provider
 
-  import ReqAI.Provider.Utils, only: [set_stream: 2]
+  import ReqAI.Provider.Utils, only: [set_stream: 2, fetch_attr: 2]
 
   @url "https://api.openai.com/v1/responses"
 
@@ -14,5 +14,19 @@ defmodule ReqAI.Provider.OpenAI do
     req
     |> Req.Request.put_new_option(:base_url, @url)
     |> Req.merge(method: :post, json: set_stream(request, opts[:stream]))
+  end
+
+  @impl true
+  def telemetry({:request, request}, opts) do
+    %{
+      "gen_ai.operation.name" => "chat",
+      "gen_ai.provider.name" => "openai",
+      "gen_ai.request.model" => fetch_attr(request, :model),
+      "gen_ai.request.stream" => opts[:stream]
+    }
+  end
+
+  def telemetry({:response, %Req.Response{body: body}}, _opts) do
+    %{"gen_ai.response.model" => fetch_attr(body, :model)}
   end
 end

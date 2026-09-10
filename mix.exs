@@ -21,7 +21,8 @@ defmodule ReqAI.MixProject do
 
   defp deps do
     [
-      {:req, "0.8.0-rc.0"}
+      {:req, "0.8.0-rc.0"},
+      {:telemetry, "~> 1.3"}
     ]
   end
 
