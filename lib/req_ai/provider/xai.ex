@@ -19,14 +19,14 @@ defmodule ReqAI.Provider.XAI do
   @impl true
   def telemetry({:request, request}, opts) do
     %{
-      "gen_ai.operation.name" => "chat",
-      "gen_ai.provider.name" => "x_ai",
-      "gen_ai.request.model" => fetch_attr(request, :model),
-      "gen_ai.request.stream" => opts[:stream]
+      "gen_ai.operation.name": "chat",
+      "gen_ai.provider.name": "x_ai",
+      "gen_ai.request.model": fetch_attr(request, :model),
+      "gen_ai.request.stream": opts[:stream]
     }
   end
 
   def telemetry({:response, %Req.Response{body: body}}, _opts) do
-    %{"gen_ai.response.model" => fetch_attr(body, :model)}
+    %{"gen_ai.response.model": fetch_attr(body, :model)}
   end
 end

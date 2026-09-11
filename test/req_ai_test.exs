@@ -217,10 +217,9 @@ defmodule ReqAITest do
       assert_receive {:telemetry, [:req_ai, :generate, :start],
                       %{monotonic_time: monotonic_time, system_time: system_time},
                       %{
-                        "gen_ai.operation.name" => "chat",
-                        "gen_ai.provider.name" => "openai",
-                        "gen_ai.request.model" => "gpt-5.4",
-                        "gen_ai.request.stream" => false
+                        "gen_ai.operation.name": "chat",
+                        "gen_ai.provider.name": "openai",
+                        "gen_ai.request.model": "gpt-5.4"
                       }}
 
       assert is_integer(monotonic_time)
@@ -229,12 +228,11 @@ defmodule ReqAITest do
       assert_receive {:telemetry, [:req_ai, :generate, :stop],
                       %{duration: duration, monotonic_time: monotonic_time},
                       %{
-                        "gen_ai.operation.name" => "chat",
-                        "gen_ai.provider.name" => "openai",
-                        "gen_ai.request.model" => "gpt-5.4",
-                        "gen_ai.request.stream" => false,
-                        "gen_ai.response.model" => "gpt-5.4-2026-08-01",
-                        "http.response.status_code" => 200,
+                        "http.response.status_code": 200,
+                        "gen_ai.operation.name": "chat",
+                        "gen_ai.provider.name": "openai",
+                        "gen_ai.request.model": "gpt-5.4",
+                        "gen_ai.response.model": "gpt-5.4-2026-08-01",
                         error: false
                       }}
 
@@ -256,11 +254,10 @@ defmodule ReqAITest do
 
       assert_receive {:telemetry, [:req_ai, :generate, :stop], %{duration: duration},
                       %{
-                        "error.type" => "429",
-                        "gen_ai.provider.name" => "openai",
-                        "gen_ai.request.model" => "gpt-5.4",
-                        "gen_ai.request.stream" => false,
-                        "http.response.status_code" => 429,
+                        "error.type": "429",
+                        "http.response.status_code": 429,
+                        "gen_ai.provider.name": "openai",
+                        "gen_ai.request.model": "gpt-5.4",
                         error: true
                       }}
 
@@ -277,15 +274,14 @@ defmodule ReqAITest do
 
       assert_receive {:telemetry, [:req_ai, :generate, :stop], %{duration: duration},
                       %{
-                        "error.type" => "timeout",
-                        "gen_ai.provider.name" => "openai",
-                        "gen_ai.request.model" => "gpt-5.4",
-                        "gen_ai.request.stream" => false,
+                        "error.type": "timeout",
+                        "gen_ai.provider.name": "openai",
+                        "gen_ai.request.model": "gpt-5.4",
                         error: true
                       } = metadata}
 
-      refute Map.has_key?(metadata, "gen_ai.response.model")
-      refute Map.has_key?(metadata, "http.response.status_code")
+      refute Map.has_key?(metadata, :"gen_ai.response.model")
+      refute Map.has_key?(metadata, :"http.response.status_code")
       assert duration >= 0
     end
 
@@ -305,9 +301,8 @@ defmodule ReqAITest do
       assert_receive {:telemetry, [:req_ai, :generate, :exception],
                       %{duration: duration, monotonic_time: monotonic_time},
                       %{
-                        "gen_ai.provider.name" => "openai",
-                        "gen_ai.request.model" => "gpt-5.4",
-                        "gen_ai.request.stream" => false,
+                        "gen_ai.provider.name": "openai",
+                        "gen_ai.request.model": "gpt-5.4",
                         kind: :error,
                         reason: %RuntimeError{message: "response translation failed"},
                         stacktrace: stacktrace

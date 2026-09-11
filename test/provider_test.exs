@@ -1,7 +1,7 @@
 defmodule ReqAI.ProviderTest do
   use ExUnit.Case, async: false
 
-  alias ReqAI.Provider
+  alias ReqAI.{Provider, Telemetry}
 
   defmodule TestProvider do
     @behaviour Provider
@@ -70,18 +70,27 @@ defmodule ReqAI.ProviderTest do
     ]
 
     Enum.each(providers, fn {provider, provider_name, operation_name} ->
-      assert provider.telemetry({:request, %{model: "request-model"}}, stream: false) == %{
-               "gen_ai.operation.name" => operation_name,
-               "gen_ai.provider.name" => provider_name,
-               "gen_ai.request.model" => "request-model",
-               "gen_ai.request.stream" => false
+      assert Telemetry.telemetry(provider, {:request, %{model: "request-model"}}, stream: false) ==
+               %{
+                 "gen_ai.operation.name": operation_name,
+                 "gen_ai.provider.name": provider_name,
+                 "gen_ai.request.model": "request-model"
+               }
+
+      assert Telemetry.telemetry(provider, {:request, %{}}, stream: true) == %{
+               "gen_ai.operation.name": operation_name,
+               "gen_ai.provider.name": provider_name,
+               "gen_ai.request.stream": true
              }
 
       response = Req.Response.new(body: %{"model" => "response-model"})
 
-      assert provider.telemetry({:response, response}, []) == %{
-               "gen_ai.response.model" => "response-model"
+      assert Telemetry.telemetry(provider, {:response, response}, []) == %{
+               "gen_ai.response.model": "response-model"
              }
+
+      response = Req.Response.new(body: %{})
+      assert Telemetry.telemetry(provider, {:response, response}, []) == %{}
     end)
   end
 end

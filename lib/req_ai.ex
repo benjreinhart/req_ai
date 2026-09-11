@@ -1,5 +1,5 @@
 defmodule ReqAI do
-  alias ReqAI.Provider
+  alias ReqAI.{Provider, Telemetry}
 
   @doc """
   Generates a response.
@@ -20,7 +20,7 @@ defmodule ReqAI do
     opts = Keyword.put(opts, :stream, false)
     request = translate_request(provider, request, opts)
     req = module.build(req, request, opts)
-    metadata = module.telemetry({:request, request}, opts)
+    metadata = Telemetry.telemetry(module, {:request, request}, opts)
 
     :telemetry.span([:req_ai, :generate], metadata, fn ->
       case Req.request(req) do
@@ -134,8 +134,8 @@ defmodule ReqAI do
 
   defp response_metadata(provider, metadata, response, opts, error?) do
     metadata
-    |> Map.merge(provider.telemetry({:response, response}, opts))
-    |> Map.put("http.response.status_code", response.status)
+    |> Map.merge(Telemetry.telemetry(provider, {:response, response}, opts))
+    |> Map.put(:"http.response.status_code", response.status)
     |> Map.put(:error, error?)
     |> maybe_put_error_type(response.status, error?)
   end
@@ -152,11 +152,11 @@ defmodule ReqAI do
 
     metadata
     |> Map.put(:error, true)
-    |> Map.put("error.type", error_type)
+    |> Map.put(:"error.type", error_type)
   end
 
   defp maybe_put_error_type(metadata, status, true) when is_integer(status) do
-    Map.put(metadata, "error.type", Integer.to_string(status))
+    Map.put(metadata, :"error.type", Integer.to_string(status))
   end
 
   defp maybe_put_error_type(metadata, _status, _error?) do
