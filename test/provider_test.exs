@@ -70,27 +70,33 @@ defmodule ReqAI.ProviderTest do
     ]
 
     Enum.each(providers, fn {provider, provider_name, operation_name} ->
-      assert Telemetry.telemetry(provider, {:request, %{model: "request-model"}}, stream: false) ==
+      assert Telemetry.request_metadata(provider, %{model: "request-model"}, stream: false) ==
                %{
                  "gen_ai.operation.name": operation_name,
                  "gen_ai.provider.name": provider_name,
                  "gen_ai.request.model": "request-model"
                }
 
-      assert Telemetry.telemetry(provider, {:request, %{}}, stream: true) == %{
+      assert Telemetry.request_metadata(provider, %{}, stream: true) == %{
                "gen_ai.operation.name": operation_name,
                "gen_ai.provider.name": provider_name,
                "gen_ai.request.stream": true
              }
 
-      response = Req.Response.new(body: %{"model" => "response-model"})
+      response = Req.Response.new(status: 200, body: %{"model" => "response-model"})
 
-      assert Telemetry.telemetry(provider, {:response, response}, []) == %{
-               "gen_ai.response.model": "response-model"
+      assert Telemetry.response_metadata(provider, %{}, response, [], false) == %{
+               "gen_ai.response.model": "response-model",
+               "http.response.status_code": 200,
+               error: false
              }
 
-      response = Req.Response.new(body: %{})
-      assert Telemetry.telemetry(provider, {:response, response}, []) == %{}
+      response = Req.Response.new(status: 200, body: %{})
+
+      assert Telemetry.response_metadata(provider, %{}, response, [], false) == %{
+               "http.response.status_code": 200,
+               error: false
+             }
     end)
   end
 end

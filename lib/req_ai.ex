@@ -20,22 +20,22 @@ defmodule ReqAI do
     opts = Keyword.put(opts, :stream, false)
     request = translate_request(provider, request, opts)
     req = module.build(req, request, opts)
-    metadata = Telemetry.telemetry(module, {:request, request}, opts)
+    metadata = Telemetry.request_metadata(module, request, opts)
 
     :telemetry.span([:req_ai, :generate], metadata, fn ->
       case Req.request(req) do
         {:ok, %Req.Response{status: status} = response} when status in 200..299 ->
-          metadata = response_metadata(module, metadata, response, opts, false)
+          metadata = Telemetry.response_metadata(module, metadata, response, opts, false)
           result = {:ok, translate_response(provider, response, opts)}
           {result, metadata}
 
         {:ok, response} ->
-          metadata = response_metadata(module, metadata, response, opts, true)
+          metadata = Telemetry.response_metadata(module, metadata, response, opts, true)
           result = {:error, translate_response(provider, response, opts)}
           {result, metadata}
 
         {:error, exception} = error ->
-          {error, error_metadata(metadata, exception)}
+          {error, Telemetry.error_metadata(metadata, exception)}
       end
     end)
   end
@@ -130,37 +130,6 @@ defmodule ReqAI do
 
   defp translate_event(%Provider{translator: translator}, event, response, opts) do
     translate(translator, :event, [event, response, opts], event)
-  end
-
-  defp response_metadata(provider, metadata, response, opts, error?) do
-    metadata
-    |> Map.merge(Telemetry.telemetry(provider, {:response, response}, opts))
-    |> Map.put(:"http.response.status_code", response.status)
-    |> Map.put(:error, error?)
-    |> maybe_put_error_type(response.status, error?)
-  end
-
-  defp error_metadata(metadata, exception) do
-    error_type =
-      case exception do
-        %Req.TransportError{reason: reason} when is_atom(reason) ->
-          Atom.to_string(reason)
-
-        %{__struct__: module} ->
-          inspect(module)
-      end
-
-    metadata
-    |> Map.put(:error, true)
-    |> Map.put(:"error.type", error_type)
-  end
-
-  defp maybe_put_error_type(metadata, status, true) when is_integer(status) do
-    Map.put(metadata, :"error.type", Integer.to_string(status))
-  end
-
-  defp maybe_put_error_type(metadata, _status, _error?) do
-    metadata
   end
 
   defp translate(nil, _callback, _args, value), do: value
