@@ -15,6 +15,12 @@ defmodule ReqAI.Telemetry do
               opts :: keyword()
             ) :: map()
 
+  @callback exception_metadata(
+              metadata :: map(),
+              exception :: Exception.t(),
+              opts :: keyword()
+            ) :: map()
+
   @doc false
   def span(%Provider{telemetry: false}, _event_prefix, _request, _opts, fun) do
     {result, _source} = fun.()
@@ -44,10 +50,13 @@ defmodule ReqAI.Telemetry do
     apply(telemetry, :response_metadata, [metadata, response, opts])
   end
 
-  defp stop_metadata(_telemetry, metadata, {:error, exception}, _opts) do
-    metadata
-    |> Map.put(:error, true)
-    |> Map.put(:"error.type", error_type(exception))
+  defp stop_metadata(telemetry, metadata, {:error, exception}, opts) do
+    metadata =
+      metadata
+      |> Map.put(:error, true)
+      |> Map.put(:"error.type", error_type(exception))
+
+    apply(telemetry, :exception_metadata, [metadata, exception, opts])
   end
 
   def error_type(%Req.TransportError{reason: reason}) when is_atom(reason) do

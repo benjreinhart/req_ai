@@ -34,4 +34,7 @@ defmodule ReqAI.Provider.OpenRouter do
   def response_metadata(metadata, %Req.Response{body: body}, _opts) do
     Map.merge(%{"gen_ai.response.model": fetch_attr(body, :model)}, metadata)
   end
+
+  @impl true
+  def exception_metadata(metadata, _exception, _opts), do: metadata
 end

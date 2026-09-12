@@ -15,6 +15,9 @@ defmodule ReqAI.ProviderTest do
 
     @impl true
     def response_metadata(metadata, _response, _opts), do: metadata
+
+    @impl true
+    def exception_metadata(metadata, _exception, _opts), do: metadata
   end
 
   defmodule TestTranslator do
@@ -116,6 +119,12 @@ defmodule ReqAI.ProviderTest do
       response = Req.Response.new(status: 200, body: %{})
 
       assert provider.response_metadata(%{}, response, []) == %{"gen_ai.response.model": nil}
+
+      exception = %Req.TransportError{reason: :timeout}
+
+      assert provider.exception_metadata(%{feature: :summarizer}, exception, []) == %{
+               feature: :summarizer
+             }
     end)
   end
 end

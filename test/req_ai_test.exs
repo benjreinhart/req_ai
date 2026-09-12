@@ -51,6 +51,12 @@ defmodule ReqAITest do
       send(self(), {:extract_response_telemetry, metadata, response.body, opts[:stream]})
       Map.put(metadata, :custom_response, response.body["model"])
     end
+
+    @impl true
+    def exception_metadata(metadata, exception, opts) do
+      send(self(), {:extract_exception_telemetry, metadata, exception, opts[:stream]})
+      Map.put(metadata, :custom_exception, exception.reason)
+    end
   end
 
   defmodule MinimalTelemetry do
@@ -61,6 +67,9 @@ defmodule ReqAITest do
 
     @impl true
     def response_metadata(metadata, _response, _opts), do: metadata
+
+    @impl true
+    def exception_metadata(metadata, _exception, _opts), do: metadata
   end
 
   @request %{model: "gpt-5.4", input: "Say hello."}
@@ -360,15 +369,29 @@ defmodule ReqAITest do
       attach_generate_telemetry()
 
       exception = %Req.TransportError{reason: :timeout}
-      provider = ReqStubs.stub_provider_response_exception(OpenAI, exception)
+
+      provider =
+        ReqStubs.stub_provider_response_exception(
+          {OpenAI, [telemetry: CustomTelemetry, telemetry_metadata: %{feature: :summarizer}]},
+          exception
+        )
 
       assert {:error, ^exception} = ReqAI.generate(provider, @request)
 
-      assert_receive {:telemetry, [:req_ai, :generate, :stop], %{duration: duration},
+      assert_receive {:extract_exception_telemetry,
                       %{
                         "error.type": "timeout",
-                        "gen_ai.provider.name": "openai",
-                        "gen_ai.request.model": "gpt-5.4",
+                        custom_request: "gpt-5.4",
+                        error: true,
+                        feature: :summarizer
+                      }, ^exception, false}
+
+      assert_receive {:telemetry, [:req_ai, :generate, :stop], %{duration: duration},
+                      %{
+                        custom_exception: :timeout,
+                        custom_request: "gpt-5.4",
+                        "error.type": "timeout",
+                        feature: :summarizer,
                         error: true
                       } = metadata}
 
