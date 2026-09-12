@@ -18,7 +18,7 @@ The current API is intentionally lower-level: callers configure adapters under `
 
 ## Custom representations
 
-Applications can configure a module implementing the `ReqAI.Translator` behaviour to translate between application values and provider-native requests, responses, and streamed events. Each callback is optional; values remain provider-native when its callback is not implemented.
+Applications can configure a module implementing the `ReqAI.Translator` behaviour to translate between application values and provider-native requests, responses, errors, and streamed events. Each callback is optional. Requests and events remain provider-native by default, while response and error values default to the provider-native response body.
 
 For example, an application can design an `%LLMRequest{}` struct and translate it for both OpenAI and Anthropic:
 
@@ -57,13 +57,23 @@ anthropic =
 # provider availability, user preferences, etc.
 provider = select_provider(user, [openai, anthropic])
 
-ReqAI.generate(provider, %MyApp.LLMRequest{
+{:ok, response, result} = ReqAI.generate(provider, %MyApp.LLMRequest{
   tokens: 200,
   transcript: [{:system, "Be nice"}, {:user, "Hello"}],
 })
 ```
 
-Translator callbacks receive the same provider options as `build/3`, including the final `:stream` value selected by `generate/2` or `stream/4`. `request/2` must return a provider-native map or keyword list. `response/2` receives successful and non-successful responses from `generate/2`, as well as buffered non-successful HTTP responses from `stream/4`. It is not invoked for successful streams: `event/3` translates each decoded event, the caller's accumulator represents the assembled application result, and the completed `Req.Response` retains transport metadata.
+Translator callbacks receive the same provider options as `build/3`, including the final `:stream` value selected by `generate/2` or `stream/4`. `request/2` must return a provider-native map or keyword list. `response/2` produces the application value for successful calls to `generate/2`, while `error/2` produces it for non-successful HTTP responses from `generate/2` and `stream/4`. Both default to `response.body`. For successful streams, `event/3` translates each decoded event and the caller's accumulator is the application result.
+
+Whenever an HTTP request completes, the untouched `Req.Response` is the second tuple element and the application-owned value is the third:
+
+```elixir
+{:ok, %Req.Response{} = response, result} = ReqAI.generate(provider, request)
+{:error, %Req.Response{} = response, error} = ReqAI.generate(provider, request)
+{:error, exception} = ReqAI.generate(provider, request)
+```
+
+A transport or decoding error has an exception in the second element instead. Streaming errors also include the response received so far (or `nil`) and the partially built accumulator.
 
 ## Telemetry
 

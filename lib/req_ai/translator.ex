@@ -3,8 +3,9 @@ defmodule ReqAI.Translator do
   Defines translations between application values and provider-native values.
 
   A translator is configured on a `ReqAI.Provider` and may implement any of the
-  callbacks in this behaviour. Values are left unchanged when the corresponding
-  callback is not implemented.
+  callbacks in this behaviour. Requests and events are left unchanged when the
+  corresponding callback is not implemented. Response and error values default
+  to the provider-native `Req.Response.body`.
 
   Translators let applications own shared request, response, and event
   representations without requiring ReqAI or its provider adapters to define a
@@ -20,17 +21,23 @@ defmodule ReqAI.Translator do
   @callback request(request :: term(), opts :: keyword()) :: map() | keyword()
 
   @doc """
-  Translates a buffered HTTP response into an application response.
+  Translates a successful HTTP response into an application response.
 
-  This callback is invoked for successful and non-successful responses from
-  `ReqAI.generate/2`, and for buffered non-successful HTTP responses from
-  `ReqAI.stream/4`.
-
-  It is not invoked for successful streams, where the accumulator is the
-  application-owned result and the returned `Req.Response` retains transport
-  metadata. It is also not invoked for transport errors.
+  This callback produces the third element returned by `ReqAI.generate/2` for
+  a successful response. It is not invoked for streams or transport errors.
   """
   @callback response(response :: Req.Response.t(), opts :: keyword()) :: term()
+
+  @doc """
+  Translates a non-successful HTTP response into an application error.
+
+  This callback produces the third element returned by `ReqAI.generate/2` or
+  `ReqAI.stream/4` for a non-successful response. For streams, `response.body`
+  contains the buffered and, when possible, JSON-decoded error body. It is not
+  invoked for transport or decoding errors. Its return is an application value;
+  ReqAI does not reinterpret or raise it.
+  """
+  @callback error(response :: Req.Response.t(), opts :: keyword()) :: term()
 
   @doc """
   Translates a provider-native streamed event into an application event.
@@ -39,5 +46,5 @@ defmodule ReqAI.Translator do
   """
   @callback event(event :: term(), response :: Req.Response.t(), opts :: keyword()) :: term()
 
-  @optional_callbacks request: 2, response: 2, event: 3
+  @optional_callbacks request: 2, response: 2, error: 2, event: 3
 end

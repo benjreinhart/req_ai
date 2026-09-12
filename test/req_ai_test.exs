@@ -27,6 +27,9 @@ defmodule ReqAITest do
     def response(response, opts), do: {:response, response.status, response.body, opts[:stream]}
 
     @impl true
+    def error(response, opts), do: {:error, response.status, response.body, opts[:stream]}
+
+    @impl true
     def event(event, response, opts), do: {:event, event, response.status, opts[:stream]}
   end
 
@@ -173,14 +176,16 @@ defmodule ReqAITest do
           ]
         )
 
-      assert {:error, response, :initial} =
+      assert {:error, response, error} =
                ReqAI.stream(provider, @request, :initial, fn _chunk, _response, _acc ->
                  flunk("callback should not be invoked for a non-2xx response")
                end)
 
       assert response.status == 401
 
-      assert response.body == %{
+      assert error == response.body
+
+      assert error == %{
                "error" => %{
                  "message" => "Invalid API key.",
                  "type" => "invalid_request_error"
@@ -197,10 +202,13 @@ defmodule ReqAITest do
           body: [{:data, ~s({"error":"Invalid request."})}]
         )
 
-      assert {:error, {:response, 400, %{"error" => "Invalid request."}, true}, :initial} =
+      assert {:error, %Req.Response{status: 400} = response,
+              {:error, 400, %{"error" => "Invalid request."}, true}} =
                ReqAI.stream(provider, @request, :initial, fn _event, _response, _acc ->
                  flunk("callback should not be invoked for a non-2xx response")
                end)
+
+      assert response.body == %{"error" => "Invalid request."}
     end
 
     test "stream buffers plain-text error responses" do
@@ -211,7 +219,7 @@ defmodule ReqAITest do
           body: [{:data, "rate "}, {:data, "limited"}]
         )
 
-      assert {:error, response, []} =
+      assert {:error, response, "rate limited"} =
                ReqAI.stream(provider, @request, [], fn _chunk, _response, _acc ->
                  flunk("callback should not be invoked for a non-2xx response")
                end)
@@ -242,7 +250,7 @@ defmodule ReqAITest do
           body: %{"model" => "gpt-5.4-2026-08-01", "status" => "completed"}
         )
 
-      assert {:ok, _response} = ReqAI.generate(provider, @request)
+      assert {:ok, _response, _result} = ReqAI.generate(provider, @request)
 
       assert_receive {:telemetry, [:req_ai, :generate, :start],
                       %{monotonic_time: monotonic_time, system_time: system_time},
@@ -280,7 +288,7 @@ defmodule ReqAITest do
           body: %{"model" => "gpt-5.4-2026-08-01", "status" => "completed"}
         )
 
-      assert {:ok, _response} = ReqAI.generate(provider, @request)
+      assert {:ok, _response, _result} = ReqAI.generate(provider, @request)
 
       assert_receive {:extract_request_telemetry, %{feature: :summarizer}, @request, false}
 
@@ -314,7 +322,7 @@ defmodule ReqAITest do
           body: %{"status" => "completed"}
         )
 
-      assert {:ok, _response} = ReqAI.generate(provider, @request)
+      assert {:ok, _response, _result} = ReqAI.generate(provider, @request)
 
       assert_receive {:telemetry, [:req_ai, :generate, :stop], _measurements,
                       %{
@@ -333,7 +341,7 @@ defmodule ReqAITest do
           body: %{"status" => "completed"}
         )
 
-      assert {:ok, _response} = ReqAI.generate(provider, @request)
+      assert {:ok, _response, _result} = ReqAI.generate(provider, @request)
 
       assert_receive {:telemetry, [:req_ai, :generate, :start], _measurements,
                       %{feature: :summarizer}}
@@ -355,7 +363,7 @@ defmodule ReqAITest do
           body: %{"status" => "completed"}
         )
 
-      assert {:ok, _response} = ReqAI.generate(provider, @request)
+      assert {:ok, _response, _result} = ReqAI.generate(provider, @request)
       refute_receive {:telemetry, [:req_ai, :generate, _lifecycle], _, _}
     end
 
@@ -368,7 +376,7 @@ defmodule ReqAITest do
           body: %{"error" => %{"message" => "Rate limited."}}
         )
 
-      assert {:error, _response} = ReqAI.generate(provider, @request)
+      assert {:error, _response, _error} = ReqAI.generate(provider, @request)
 
       assert_receive {:telemetry, [:req_ai, :generate, :stop], %{duration: duration},
                       %{
@@ -454,7 +462,7 @@ defmodule ReqAITest do
         provider_options: %{openai: %{temperature: 0.5}}
       }
 
-      assert {:ok, _response} = ReqAI.generate(provider, request)
+      assert {:ok, _response, _result} = ReqAI.generate(provider, request)
       assert_receive {:translate_request, false, :test}
       assert_receive {:request, request}
 
@@ -478,9 +486,12 @@ defmodule ReqAITest do
       provider =
         ReqStubs.stub_provider_response_json(OpenAI, body: response_body)
 
-      assert {:ok, response} = ReqAI.generate(provider, Map.put(@request, :stream, true))
+      assert {:ok, response, result} =
+               ReqAI.generate(provider, Map.put(@request, :stream, true))
+
       assert response.status == 200
       assert response.body == response_body
+      assert result == response_body
 
       assert_receive {:request, request}
 
@@ -498,8 +509,11 @@ defmodule ReqAITest do
           body: %{"status" => "completed"}
         )
 
-      assert {:ok, {:response, 200, %{"status" => "completed"}, false}} =
+      assert {:ok, %Req.Response{status: 200} = response,
+              {:response, 200, %{"status" => "completed"}, false}} =
                ReqAI.generate(provider, @request)
+
+      assert response.body == %{"status" => "completed"}
     end
 
     test "returns a non-successful response as an error" do
@@ -516,9 +530,10 @@ defmodule ReqAITest do
           body: error_body
         )
 
-      assert {:error, response} = ReqAI.generate(provider, @request)
+      assert {:error, response, error} = ReqAI.generate(provider, @request)
       assert response.status == 400
       assert response.body == error_body
+      assert error == error_body
     end
 
     test "translates a non-successful response after classifying it as an error" do
@@ -529,7 +544,22 @@ defmodule ReqAITest do
           body: %{"error" => "Invalid request."}
         )
 
-      assert {:error, {:response, 400, %{"error" => "Invalid request."}, false}} =
+      assert {:error, %Req.Response{status: 400} = response,
+              {:error, 400, %{"error" => "Invalid request."}, false}} =
+               ReqAI.generate(provider, @request)
+
+      assert response.body == %{"error" => "Invalid request."}
+    end
+
+    test "does not translate a non-successful response with response/2" do
+      provider =
+        ReqStubs.stub_provider_response_json(
+          {OpenAI, [translator: RaisingResponseTranslator]},
+          status: 400,
+          body: %{"error" => "Invalid request."}
+        )
+
+      assert {:error, %Req.Response{status: 400}, %{"error" => "Invalid request."}} =
                ReqAI.generate(provider, @request)
     end
 

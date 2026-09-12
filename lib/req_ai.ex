@@ -4,18 +4,23 @@ defmodule ReqAI do
   @doc """
   Generates a response.
 
-  The configured provider builds the request with streaming disabled. Returns
-  `{:ok, response}` for a successful HTTP response, `{:error, response}` for a
-  non-successful HTTP response, or `{:error, exception}` when the request fails.
+  The configured provider builds the request with streaming disabled. The
+  `Req.Response` is always returned unchanged as the second element when the
+  request completes at the HTTP level. The third element is an
+  application-owned value produced from that response.
 
-  By default, the response is a `Req.Response` whose body retains the
-  provider-native data. When a translator implements
-  `ReqAI.Translator.response/2`, its return value is returned instead.
+  For successful responses, the third element is produced by
+  `ReqAI.Translator.response/2`; for non-successful responses, it is produced
+  by `ReqAI.Translator.error/2`. Both default to `response.body` when their
+  callback is not implemented. Transport and decoding failures return
+  `{:error, exception}` because no HTTP response or provider-native body is
+  available.
   """
-  @spec generate(
-          provider :: Provider.t(),
-          request :: term()
-        ) :: {:ok, term()} | {:error, term()} | {:error, Exception.t()}
+  @spec generate(provider :: Provider.t(), request :: term()) ::
+          {:ok, Req.Response.t(), term()}
+          | {:error, Req.Response.t(), term()}
+          | {:error, Exception.t()}
+
   def generate(%Provider{module: module, opts: opts, req: req} = provider, request) do
     opts = Keyword.put(opts, :stream, false)
     request = translate_request(provider, request, opts)
@@ -24,11 +29,11 @@ defmodule ReqAI do
     Telemetry.span(provider, [:req_ai, :generate], request, opts, fn ->
       case Req.request(req) do
         {:ok, %Req.Response{status: status} = response} when status in 200..299 ->
-          result = {:ok, translate_response(provider, response, opts)}
+          result = {:ok, response, translate_response(provider, response, opts)}
           {result, {:response, response, false}}
 
         {:ok, response} ->
-          result = {:error, translate_response(provider, response, opts)}
+          result = {:error, response, translate_error(provider, response, opts)}
           {result, {:response, response, true}}
 
         {:error, exception} = error ->
@@ -51,17 +56,17 @@ defmodule ReqAI do
   implements `ReqAI.Translator.event/3`, `fun` receives its return value. The
   accompanying response remains the in-progress `Req.Response`.
 
-  The completed response for a successful stream remains the raw
-  `Req.Response`. The accumulator is the application-owned result of consuming
-  the translated events. Buffered non-successful HTTP responses are translated
-  with `ReqAI.Translator.response/2` when that callback is implemented.
+  The completed response remains the raw `Req.Response`. For a successful
+  stream, the accumulator is the application-owned result of consuming the
+  translated events. For a non-successful stream, the third element is produced
+  by `ReqAI.Translator.error/2`, defaulting to the buffered response body.
 
   Non-successful HTTP responses are not passed to `fun`. Their streamed data is
   instead collected into `response.body`; JSON error bodies are decoded when
-  possible. In this case, the original accumulator is returned unchanged.
+  possible.
 
   Returns `{:ok, response, acc}` for a successful HTTP response,
-  `{:error, response, acc}` for a non-successful HTTP response, or
+  `{:error, response, error}` for a non-successful HTTP response, or
   `{:error, exception, response, acc}` for a transport or decoding error.
   """
   @spec stream(
@@ -70,12 +75,12 @@ defmodule ReqAI do
           acc,
           fun :: (term(), Req.Response.t(), acc -> {:cont, acc} | {:halt, acc})
         ) ::
-          {:ok, term(), acc}
-          | {:error, term(), acc}
-          | {:error, Exception.t(), Req.Response.t(), acc}
+          {:ok, Req.Response.t(), acc}
+          | {:error, Req.Response.t(), acc}
+          | {:error, Exception.t(), Req.Response.t() | nil, acc}
         when acc: term()
-  def stream(%Provider{} = provider, request, acc, fun)
-      when is_function(fun, 3) do
+
+  def stream(%Provider{} = provider, request, acc, fun) when is_function(fun, 3) do
     opts = Keyword.put(provider.opts, :stream, true)
     req = build_request(provider, request, opts)
 
@@ -103,9 +108,9 @@ defmodule ReqAI do
       {:ok, %Req.Response{} = response, {acc, _}} when response.status in 200..299 ->
         {:ok, response, acc}
 
-      {:ok, response, {acc, error_body}} ->
+      {:ok, response, {_acc, error_body}} ->
         response = put_error_body(response, error_body)
-        {:error, translate_response(provider, response, opts), acc}
+        {:error, response, translate_error(provider, response, opts)}
 
       {:error, exception, response, {acc, _error_body}} ->
         {:error, exception, response, acc}
@@ -122,7 +127,11 @@ defmodule ReqAI do
   end
 
   defp translate_response(%Provider{translator: translator}, response, opts) do
-    translate(translator, :response, [response, opts], response)
+    translate(translator, :response, [response, opts], response.body)
+  end
+
+  defp translate_error(%Provider{translator: translator}, response, opts) do
+    translate(translator, :error, [response, opts], response.body)
   end
 
   defp translate_event(%Provider{translator: translator}, event, response, opts) do
