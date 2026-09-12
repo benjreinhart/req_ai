@@ -20,22 +20,19 @@ defmodule ReqAI do
     opts = Keyword.put(opts, :stream, false)
     request = translate_request(provider, request, opts)
     req = module.build(req, request, opts)
-    metadata = Telemetry.request_metadata(module, request, opts)
 
-    :telemetry.span([:req_ai, :generate], metadata, fn ->
+    Telemetry.span(provider, [:req_ai, :generate], request, opts, fn ->
       case Req.request(req) do
         {:ok, %Req.Response{status: status} = response} when status in 200..299 ->
-          metadata = Telemetry.response_metadata(module, metadata, response, opts, false)
           result = {:ok, translate_response(provider, response, opts)}
-          {result, metadata}
+          {result, {:response, response, false}}
 
         {:ok, response} ->
-          metadata = Telemetry.response_metadata(module, metadata, response, opts, true)
           result = {:error, translate_response(provider, response, opts)}
-          {result, metadata}
+          {result, {:response, response, true}}
 
         {:error, exception} = error ->
-          {error, Telemetry.error_metadata(metadata, exception)}
+          {error, {:error, exception}}
       end
     end)
   end

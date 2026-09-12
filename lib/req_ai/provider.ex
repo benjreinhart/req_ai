@@ -16,19 +16,16 @@ defmodule ReqAI.Provider do
               opts :: keyword()
             ) :: Req.Request.t()
 
-  @callback telemetry(
-              source :: {:request, map() | keyword()} | {:response, Req.Response.t()},
-              opts :: keyword()
-            ) :: map()
-
   @enforce_keys [:module, :req, :opts]
-  defstruct [:module, :req, :opts, :translator]
+  defstruct [:module, :req, :opts, :translator, :telemetry, telemetry_metadata: %{}]
 
   @type t :: %__MODULE__{
           module: module(),
           req: Req.Request.t(),
           opts: keyword(),
-          translator: module() | nil
+          translator: module() | nil,
+          telemetry: module() | false,
+          telemetry_metadata: map()
         }
 
   @doc """
@@ -43,11 +40,18 @@ defmodule ReqAI.Provider do
   each request.
 
   The optional `:translator` must implement the `ReqAI.Translator` behaviour.
+
+  The `:telemetry` option selects a module implementing the `ReqAI.Telemetry`
+  behaviour and defaults to the provider module. Set it to `false` to disable
+  telemetry emission. The `:telemetry_metadata` option accepts a map that is
+  included in every emitted telemetry event.
   """
   @spec new(module :: module(), opts :: keyword()) :: t()
   def new(module, opts) do
     {req_opts, opts} = Keyword.pop(opts, :req, [])
     {translator, opts} = Keyword.pop(opts, :translator, nil)
+    {telemetry, opts} = Keyword.pop(opts, :telemetry, module)
+    {telemetry_metadata, opts} = Keyword.pop(opts, :telemetry_metadata, %{})
 
     req =
       module
@@ -55,7 +59,14 @@ defmodule ReqAI.Provider do
       |> Keyword.get(:req, [])
       |> Req.new(req_opts)
 
-    %__MODULE__{module: module, req: req, opts: opts, translator: translator}
+    %__MODULE__{
+      module: module,
+      req: req,
+      opts: opts,
+      translator: translator,
+      telemetry: telemetry,
+      telemetry_metadata: telemetry_metadata
+    }
   end
 
   defp application_config(provider) do

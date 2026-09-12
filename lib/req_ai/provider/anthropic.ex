@@ -4,6 +4,7 @@ defmodule ReqAI.Provider.Anthropic do
   """
 
   @behaviour ReqAI.Provider
+  @behaviour ReqAI.Telemetry
 
   import ReqAI.Provider.Utils, only: [set_stream: 2, fetch_attr: 2]
 
@@ -21,7 +22,7 @@ defmodule ReqAI.Provider.Anthropic do
   end
 
   @impl true
-  def telemetry({:request, request}, opts) do
+  def request_metadata(request, opts) do
     %{
       "gen_ai.operation.name": "chat",
       "gen_ai.provider.name": "anthropic",
@@ -30,7 +31,8 @@ defmodule ReqAI.Provider.Anthropic do
     }
   end
 
-  def telemetry({:response, %Req.Response{body: body}}, _opts) do
+  @impl true
+  def response_metadata(%Req.Response{body: body}, _opts) do
     %{"gen_ai.response.model": fetch_attr(body, :model)}
   end
 end

@@ -1,16 +1,20 @@
 defmodule ReqAI.ProviderTest do
   use ExUnit.Case, async: false
 
-  alias ReqAI.{Provider, Telemetry}
+  alias ReqAI.Provider
 
   defmodule TestProvider do
     @behaviour Provider
+    @behaviour ReqAI.Telemetry
 
     @impl true
     def build(req, _request, _opts), do: req
 
     @impl true
-    def telemetry(_source, _opts), do: %{}
+    def request_metadata(_request, _opts), do: %{}
+
+    @impl true
+    def response_metadata(_response, _opts), do: %{}
   end
 
   defmodule TestTranslator do
@@ -52,12 +56,27 @@ defmodule ReqAI.ProviderTest do
 
     assert provider.module == TestProvider
     assert provider.translator == TestTranslator
+    assert provider.telemetry == TestProvider
+    assert provider.telemetry_metadata == %{}
     assert provider.opts == [model: "test-model"]
     assert Req.Request.get_option(provider.req, :base_url) == "https://options.example"
     assert Req.Request.get_option(provider.req, :retry) == false
     assert Req.Request.get_header(provider.req, "x-config") == ["configured"]
     assert Req.Request.get_header(provider.req, "x-option") == ["passed"]
     assert Req.Request.get_header(provider.req, "x-shared") == ["passed"]
+  end
+
+  test "configures telemetry separately from provider options" do
+    provider =
+      Provider.new(TestProvider,
+        telemetry: false,
+        telemetry_metadata: %{feature: :summarizer},
+        model: "test-model"
+      )
+
+    assert provider.telemetry == false
+    assert provider.telemetry_metadata == %{feature: :summarizer}
+    assert provider.opts == [model: "test-model"]
   end
 
   test "built-in providers return request and response telemetry" do
@@ -70,33 +89,29 @@ defmodule ReqAI.ProviderTest do
     ]
 
     Enum.each(providers, fn {provider, provider_name, operation_name} ->
-      assert Telemetry.request_metadata(provider, %{model: "request-model"}, stream: false) ==
-               %{
-                 "gen_ai.operation.name": operation_name,
-                 "gen_ai.provider.name": provider_name,
-                 "gen_ai.request.model": "request-model"
-               }
-
-      assert Telemetry.request_metadata(provider, %{}, stream: true) == %{
+      assert provider.request_metadata(%{model: "request-model"}, stream: false) == %{
                "gen_ai.operation.name": operation_name,
                "gen_ai.provider.name": provider_name,
+               "gen_ai.request.model": "request-model",
+               "gen_ai.request.stream": false
+             }
+
+      assert provider.request_metadata(%{}, stream: true) == %{
+               "gen_ai.operation.name": operation_name,
+               "gen_ai.provider.name": provider_name,
+               "gen_ai.request.model": nil,
                "gen_ai.request.stream": true
              }
 
       response = Req.Response.new(status: 200, body: %{"model" => "response-model"})
 
-      assert Telemetry.response_metadata(provider, %{}, response, [], false) == %{
-               "gen_ai.response.model": "response-model",
-               "http.response.status_code": 200,
-               error: false
+      assert provider.response_metadata(response, []) == %{
+               "gen_ai.response.model": "response-model"
              }
 
       response = Req.Response.new(status: 200, body: %{})
 
-      assert Telemetry.response_metadata(provider, %{}, response, [], false) == %{
-               "http.response.status_code": 200,
-               error: false
-             }
+      assert provider.response_metadata(response, []) == %{"gen_ai.response.model": nil}
     end)
   end
 end

@@ -37,6 +37,32 @@ defmodule ReqAITest do
     def response(_response, _opts), do: raise("response translation failed")
   end
 
+  defmodule CustomTelemetry do
+    @behaviour ReqAI.Telemetry
+
+    @impl true
+    def request_metadata(request, opts) do
+      send(self(), {:extract_request_telemetry, request, opts[:stream]})
+      %{custom_request: Map.fetch!(request, :model)}
+    end
+
+    @impl true
+    def response_metadata(response, opts) do
+      send(self(), {:extract_response_telemetry, response.body, opts[:stream]})
+      %{custom_response: response.body["model"]}
+    end
+  end
+
+  defmodule MinimalTelemetry do
+    @behaviour ReqAI.Telemetry
+
+    @impl true
+    def request_metadata(_request, _opts), do: %{request_only: true}
+
+    @impl true
+    def response_metadata(_response, _opts), do: %{}
+  end
+
   @request %{model: "gpt-5.4", input: "Say hello."}
 
   describe "stream/4" do
@@ -241,6 +267,67 @@ defmodule ReqAITest do
       assert is_integer(monotonic_time)
     end
 
+    test "uses an overridden extractor and merges static metadata into every event" do
+      attach_generate_telemetry()
+
+      provider =
+        ReqStubs.stub_provider_response_json(
+          {OpenAI, [telemetry: CustomTelemetry, telemetry_metadata: %{feature: :summarizer}]},
+          body: %{"model" => "gpt-5.4-2026-08-01", "status" => "completed"}
+        )
+
+      assert {:ok, _response} = ReqAI.generate(provider, @request)
+
+      assert_receive {:extract_request_telemetry, @request, false}
+
+      assert_receive {:telemetry, [:req_ai, :generate, :start], _measurements,
+                      %{custom_request: "gpt-5.4", feature: :summarizer} = metadata}
+
+      refute Map.has_key?(metadata, :"gen_ai.provider.name")
+
+      assert_receive {:extract_response_telemetry,
+                      %{"model" => "gpt-5.4-2026-08-01", "status" => "completed"}, false}
+
+      assert_receive {:telemetry, [:req_ai, :generate, :stop], _measurements,
+                      %{
+                        custom_request: "gpt-5.4",
+                        custom_response: "gpt-5.4-2026-08-01",
+                        feature: :summarizer
+                      }}
+    end
+
+    test "supports an extractor that returns empty response metadata" do
+      attach_generate_telemetry()
+
+      provider =
+        ReqStubs.stub_provider_response_json(
+          {OpenAI, [telemetry: MinimalTelemetry]},
+          body: %{"status" => "completed"}
+        )
+
+      assert {:ok, _response} = ReqAI.generate(provider, @request)
+
+      assert_receive {:telemetry, [:req_ai, :generate, :stop], _measurements,
+                      %{
+                        request_only: true,
+                        "http.response.status_code": 200,
+                        error: false
+                      }}
+    end
+
+    test "disables extraction and emission when telemetry is false" do
+      attach_generate_telemetry()
+
+      provider =
+        ReqStubs.stub_provider_response_json(
+          {OpenAI, [telemetry: false, telemetry_metadata: %{feature: :summarizer}]},
+          body: %{"status" => "completed"}
+        )
+
+      assert {:ok, _response} = ReqAI.generate(provider, @request)
+      refute_receive {:telemetry, [:req_ai, :generate, _lifecycle], _, _}
+    end
+
     test "emits error telemetry for a non-successful HTTP response" do
       attach_generate_telemetry()
 
@@ -290,7 +377,11 @@ defmodule ReqAITest do
 
       provider =
         ReqStubs.stub_provider_response_json(
-          {OpenAI, [translator: RaisingResponseTranslator]},
+          {OpenAI,
+           [
+             translator: RaisingResponseTranslator,
+             telemetry_metadata: %{feature: :summarizer}
+           ]},
           body: %{"model" => "gpt-5.4-2026-08-01", "status" => "completed"}
         )
 
@@ -303,6 +394,7 @@ defmodule ReqAITest do
                       %{
                         "gen_ai.provider.name": "openai",
                         "gen_ai.request.model": "gpt-5.4",
+                        feature: :summarizer,
                         kind: :error,
                         reason: %RuntimeError{message: "response translation failed"},
                         stacktrace: stacktrace
@@ -435,6 +527,8 @@ defmodule ReqAITest do
 
   @doc false
   def handle_telemetry_event(event, measurements, metadata, pid) do
-    send(pid, {:telemetry, event, measurements, metadata})
+    if self() == pid do
+      send(pid, {:telemetry, event, measurements, metadata})
+    end
   end
 end

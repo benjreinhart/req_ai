@@ -65,6 +65,18 @@ ReqAI.generate(provider, %MyApp.LLMRequest{
 
 Translator callbacks receive the same provider options as `build/3`, including the final `:stream` value selected by `generate/2` or `stream/4`. `request/2` must return a provider-native map or keyword list. `response/2` receives successful and non-successful responses from `generate/2`, as well as buffered non-successful HTTP responses from `stream/4`. It is not invoked for successful streams: `event/3` translates each decoded event, the caller's accumulator represents the assembled application result, and the completed `Req.Response` retains transport metadata.
 
+## Telemetry
+
+`generate/2` emits `[:req_ai, :generate, :start]`, `[:req_ai, :generate, :stop]`, and `[:req_ai, :generate, :exception]` events. By default, the provider module implements the `ReqAI.Telemetry` behaviour and extracts provider-specific attributes. Pass `telemetry: MyApp.Telemetry` to use a custom extractor, or `telemetry: false` to disable emission for that provider. A static metadata map can tag every event:
+
+```elixir
+ReqAI.Provider.new(ReqAI.Provider.OpenAI,
+  telemetry_metadata: %{feature: :summarizer}
+)
+```
+
+Applications can attach handlers with `:telemetry` without replacing the emission layer.
+
 ## Installation
 
 If [available in Hex](https://hex.pm/docs/publish), the package can be installed

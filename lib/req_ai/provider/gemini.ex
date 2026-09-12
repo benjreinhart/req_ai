@@ -4,6 +4,7 @@ defmodule ReqAI.Provider.Gemini do
   """
 
   @behaviour ReqAI.Provider
+  @behaviour ReqAI.Telemetry
 
   import ReqAI.Provider.Utils, only: [set_stream: 2, fetch_attr: 2]
 
@@ -17,7 +18,7 @@ defmodule ReqAI.Provider.Gemini do
   end
 
   @impl true
-  def telemetry({:request, request}, opts) do
+  def request_metadata(request, opts) do
     %{
       "gen_ai.operation.name": "generate_content",
       "gen_ai.provider.name": "gcp.gemini",
@@ -26,7 +27,8 @@ defmodule ReqAI.Provider.Gemini do
     }
   end
 
-  def telemetry({:response, %Req.Response{body: body}}, _opts) do
+  @impl true
+  def response_metadata(%Req.Response{body: body}, _opts) do
     %{"gen_ai.response.model": fetch_attr(body, :model)}
   end
 end

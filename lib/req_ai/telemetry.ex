@@ -1,35 +1,50 @@
 defmodule ReqAI.Telemetry do
-  @moduledoc false
+  @moduledoc "Attribute extraction for telemetry events."
 
-  def request_metadata(provider, request, opts) do
-    provider_metadata(provider, {:request, request}, opts)
+  alias ReqAI.Provider
+
+  @callback request_metadata(request :: map() | keyword(), opts :: keyword()) :: map()
+  @callback response_metadata(Req.Response.t(), opts :: keyword()) :: map()
+
+  @doc false
+  def span(%Provider{telemetry: false}, _event_prefix, _request, _opts, fun) do
+    {result, _source} = fun.()
+    result
   end
 
-  def response_metadata(provider, metadata, response, opts, error?) do
+  def span(%Provider{} = provider, event_prefix, request, opts, fun) do
+    metadata = start_metadata(provider.telemetry, provider.telemetry_metadata, request, opts)
+
+    :telemetry.span(event_prefix, metadata, fn ->
+      {result, source} = fun.()
+      {result, stop_metadata(provider.telemetry, metadata, source, opts)}
+    end)
+  end
+
+  defp start_metadata(telemetry, metadata, request, opts) do
+    apply(telemetry, :request_metadata, [request, opts]) |> Map.merge(metadata)
+  end
+
+  defp stop_metadata(telemetry, metadata, {:response, response, error?}, opts) do
     metadata
-    |> Map.merge(provider_metadata(provider, {:response, response}, opts))
+    |> Map.merge(apply(telemetry, :response_metadata, [response, opts]))
     |> Map.put(:"http.response.status_code", response.status)
     |> Map.put(:error, error?)
     |> maybe_put_error_type(response.status, error?)
   end
 
-  def error_metadata(metadata, exception) do
-    error_type =
-      case exception do
-        %Req.TransportError{reason: reason} when is_atom(reason) ->
-          Atom.to_string(reason)
-
-        %{__struct__: module} ->
-          inspect(module)
-      end
-
+  defp stop_metadata(_telemetry, metadata, {:error, exception}, _opts) do
     metadata
     |> Map.put(:error, true)
-    |> Map.put(:"error.type", error_type)
+    |> Map.put(:"error.type", error_type(exception))
   end
 
-  defp provider_metadata(provider, source, opts) do
-    provider.telemetry(source, opts) |> Enum.reject(&ignore?/1) |> Map.new()
+  def error_type(%Req.TransportError{reason: reason}) when is_atom(reason) do
+    Atom.to_string(reason)
+  end
+
+  def error_type(%{__struct__: module}) do
+    inspect(module)
   end
 
   defp maybe_put_error_type(metadata, status, true) when is_integer(status) do
@@ -37,8 +52,4 @@ defmodule ReqAI.Telemetry do
   end
 
   defp maybe_put_error_type(metadata, _status, _error?), do: metadata
-
-  defp ignore?({_key, nil}), do: true
-  defp ignore?({:"gen_ai.request.stream", false}), do: true
-  defp ignore?({_key, _value}), do: false
 end
