@@ -58,12 +58,6 @@ defmodule ReqAITest do
       send(self(), {:extract_response_telemetry, metadata, response.body, opts[:stream]})
       Map.put(metadata, :custom_response, response.body["model"])
     end
-
-    @impl true
-    def exception_metadata(metadata, exception, opts) do
-      send(self(), {:extract_exception_telemetry, metadata, exception, opts[:stream]})
-      Map.put(metadata, :custom_exception, exception.reason)
-    end
   end
 
   defmodule MinimalTelemetry do
@@ -352,27 +346,6 @@ defmodule ReqAITest do
                       }}
     end
 
-    test "supports a provider without an exception telemetry callback" do
-      attach_generate_telemetry()
-
-      exception = %Req.TransportError{reason: :timeout}
-
-      provider =
-        ReqStubs.stub_provider_response_exception(
-          {ProviderWithoutTelemetry, [telemetry_metadata: %{feature: :summarizer}]},
-          exception
-        )
-
-      assert {:error, ^exception} = ReqAI.generate(provider, @request)
-
-      assert_receive {:telemetry, [:req_ai, :generate, :stop], _measurements,
-                      %{
-                        "error.type": "timeout",
-                        error: true,
-                        feature: :summarizer
-                      }}
-    end
-
     test "disables extraction and emission when telemetry is false" do
       attach_generate_telemetry()
 
@@ -422,17 +395,8 @@ defmodule ReqAITest do
 
       assert {:error, ^exception} = ReqAI.generate(provider, @request)
 
-      assert_receive {:extract_exception_telemetry,
-                      %{
-                        "error.type": "timeout",
-                        custom_request: "gpt-5.4",
-                        error: true,
-                        feature: :summarizer
-                      }, ^exception, false}
-
       assert_receive {:telemetry, [:req_ai, :generate, :stop], %{duration: duration},
                       %{
-                        custom_exception: :timeout,
                         custom_request: "gpt-5.4",
                         "error.type": "timeout",
                         feature: :summarizer,

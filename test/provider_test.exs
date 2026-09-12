@@ -109,12 +109,6 @@ defmodule ReqAI.ProviderTest do
       response = Req.Response.new(status: 200, body: %{})
 
       assert provider.response_metadata(%{}, response, []) == %{"gen_ai.response.model": nil}
-
-      exception = %Req.TransportError{reason: :timeout}
-
-      assert provider.exception_metadata(%{feature: :summarizer}, exception, []) == %{
-               feature: :summarizer
-             }
     end)
   end
 end

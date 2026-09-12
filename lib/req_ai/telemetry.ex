@@ -15,13 +15,7 @@ defmodule ReqAI.Telemetry do
               opts :: keyword()
             ) :: map()
 
-  @callback exception_metadata(
-              metadata :: map(),
-              exception :: Exception.t(),
-              opts :: keyword()
-            ) :: map()
-
-  @optional_callbacks request_metadata: 3, response_metadata: 3, exception_metadata: 3
+  @optional_callbacks request_metadata: 3, response_metadata: 3
 
   @doc false
   def span(%Provider{telemetry: false}, _event_prefix, _request, _opts, fun) do
@@ -52,13 +46,10 @@ defmodule ReqAI.Telemetry do
     extract_metadata(telemetry, :response_metadata, [metadata, response, opts], metadata)
   end
 
-  defp stop_metadata(telemetry, metadata, {:error, exception}, opts) do
-    metadata =
-      metadata
-      |> Map.put(:error, true)
-      |> Map.put(:"error.type", error_type(exception))
-
-    extract_metadata(telemetry, :exception_metadata, [metadata, exception, opts], metadata)
+  defp stop_metadata(_telemetry, metadata, {:error, exception}, _opts) do
+    metadata
+    |> Map.put(:error, true)
+    |> Map.put(:"error.type", error_type(exception))
   end
 
   defp extract_metadata(telemetry, callback, args, metadata) do
