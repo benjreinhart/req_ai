@@ -1,5 +1,5 @@
 defmodule ReqAI.Telemetry do
-  @moduledoc "Attribute extraction for telemetry events."
+  @moduledoc "Optional attribute extraction callbacks for telemetry events."
 
   alias ReqAI.Provider
 
@@ -21,6 +21,8 @@ defmodule ReqAI.Telemetry do
               opts :: keyword()
             ) :: map()
 
+  @optional_callbacks request_metadata: 3, response_metadata: 3, exception_metadata: 3
+
   @doc false
   def span(%Provider{telemetry: false}, _event_prefix, _request, _opts, fun) do
     {result, _source} = fun.()
@@ -37,7 +39,7 @@ defmodule ReqAI.Telemetry do
   end
 
   defp start_metadata(telemetry, metadata, request, opts) do
-    apply(telemetry, :request_metadata, [metadata, request, opts])
+    extract_metadata(telemetry, :request_metadata, [metadata, request, opts], metadata)
   end
 
   defp stop_metadata(telemetry, metadata, {:response, response, error?}, opts) do
@@ -47,7 +49,7 @@ defmodule ReqAI.Telemetry do
       |> Map.put(:error, error?)
       |> maybe_put_error_type(response.status, error?)
 
-    apply(telemetry, :response_metadata, [metadata, response, opts])
+    extract_metadata(telemetry, :response_metadata, [metadata, response, opts], metadata)
   end
 
   defp stop_metadata(telemetry, metadata, {:error, exception}, opts) do
@@ -56,7 +58,22 @@ defmodule ReqAI.Telemetry do
       |> Map.put(:error, true)
       |> Map.put(:"error.type", error_type(exception))
 
-    apply(telemetry, :exception_metadata, [metadata, exception, opts])
+    extract_metadata(telemetry, :exception_metadata, [metadata, exception, opts], metadata)
+  end
+
+  defp extract_metadata(telemetry, callback, args, metadata) do
+    case Code.ensure_loaded(telemetry) do
+      {:module, ^telemetry} ->
+        if function_exported?(telemetry, callback, length(args)) do
+          apply(telemetry, callback, args)
+        else
+          metadata
+        end
+
+      {:error, reason} ->
+        raise ArgumentError,
+              "could not load telemetry module #{inspect(telemetry)}: #{inspect(reason)}"
+    end
   end
 
   def error_type(%Req.TransportError{reason: reason}) when is_atom(reason) do

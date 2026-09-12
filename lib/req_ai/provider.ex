@@ -41,10 +41,10 @@ defmodule ReqAI.Provider do
 
   The optional `:translator` must implement the `ReqAI.Translator` behaviour.
 
-  The `:telemetry` option selects a module implementing the `ReqAI.Telemetry`
-  behaviour and defaults to the provider module. Set it to `false` to disable
-  telemetry emission. The `:telemetry_metadata` option accepts a map that is
-  passed to the telemetry callbacks.
+  The `:telemetry` option selects a module implementing any of the optional
+  `ReqAI.Telemetry` callbacks and defaults to the provider module. Set it to
+  `false` to disable telemetry emission. The `:telemetry_metadata` option
+  accepts a map that is passed to the telemetry callbacks.
   """
   @spec new(module :: module(), opts :: keyword()) :: t()
   def new(module, opts) do

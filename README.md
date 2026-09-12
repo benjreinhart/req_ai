@@ -67,7 +67,7 @@ Translator callbacks receive the same provider options as `build/3`, including t
 
 ## Telemetry
 
-`generate/2` emits `[:req_ai, :generate, :start]`, `[:req_ai, :generate, :stop]`, and `[:req_ai, :generate, :exception]` events. By default, the provider module implements the `ReqAI.Telemetry` behaviour and extracts provider-specific attributes. Pass `telemetry: MyApp.Telemetry` to use a custom extractor, or `telemetry: false` to disable emission for that provider. A static metadata map can tag every event:
+`generate/2` emits `[:req_ai, :generate, :start]`, `[:req_ai, :generate, :stop]`, and `[:req_ai, :generate, :exception]` events. The provider module is used as the telemetry extractor by default and may implement any of the optional `ReqAI.Telemetry` callbacks to add provider-specific attributes. Pass `telemetry: MyApp.Telemetry` to use a separate extractor, or `telemetry: false` to disable emission for that provider. A static metadata map can tag every event:
 
 ```elixir
 ReqAI.Provider.new(ReqAI.Provider.OpenAI,

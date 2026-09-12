@@ -5,19 +5,9 @@ defmodule ReqAI.ProviderTest do
 
   defmodule TestProvider do
     @behaviour Provider
-    @behaviour ReqAI.Telemetry
 
     @impl true
     def build(req, _request, _opts), do: req
-
-    @impl true
-    def request_metadata(metadata, _request, _opts), do: metadata
-
-    @impl true
-    def response_metadata(metadata, _response, _opts), do: metadata
-
-    @impl true
-    def exception_metadata(metadata, _exception, _opts), do: metadata
   end
 
   defmodule TestTranslator do

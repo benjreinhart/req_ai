@@ -37,6 +37,13 @@ defmodule ReqAITest do
     def response(_response, _opts), do: raise("response translation failed")
   end
 
+  defmodule ProviderWithoutTelemetry do
+    @behaviour ReqAI.Provider
+
+    @impl true
+    def build(req, request, opts), do: ReqAI.Provider.OpenAI.build(req, request, opts)
+  end
+
   defmodule CustomTelemetry do
     @behaviour ReqAI.Telemetry
 
@@ -64,12 +71,6 @@ defmodule ReqAITest do
 
     @impl true
     def request_metadata(metadata, _request, _opts), do: Map.put(metadata, :request_only, true)
-
-    @impl true
-    def response_metadata(metadata, _response, _opts), do: metadata
-
-    @impl true
-    def exception_metadata(metadata, _exception, _opts), do: metadata
   end
 
   @request %{model: "gpt-5.4", input: "Say hello."}
@@ -310,7 +311,7 @@ defmodule ReqAITest do
                       }}
     end
 
-    test "supports an extractor that returns empty response metadata" do
+    test "supports an extractor without a response callback" do
       attach_generate_telemetry()
 
       provider =
@@ -326,6 +327,49 @@ defmodule ReqAITest do
                         request_only: true,
                         "http.response.status_code": 200,
                         error: false
+                      }}
+    end
+
+    test "supports a provider without telemetry callbacks" do
+      attach_generate_telemetry()
+
+      provider =
+        ReqStubs.stub_provider_response_json(
+          {ProviderWithoutTelemetry, [telemetry_metadata: %{feature: :summarizer}]},
+          body: %{"status" => "completed"}
+        )
+
+      assert {:ok, _response} = ReqAI.generate(provider, @request)
+
+      assert_receive {:telemetry, [:req_ai, :generate, :start], _measurements,
+                      %{feature: :summarizer}}
+
+      assert_receive {:telemetry, [:req_ai, :generate, :stop], _measurements,
+                      %{
+                        "http.response.status_code": 200,
+                        error: false,
+                        feature: :summarizer
+                      }}
+    end
+
+    test "supports a provider without an exception telemetry callback" do
+      attach_generate_telemetry()
+
+      exception = %Req.TransportError{reason: :timeout}
+
+      provider =
+        ReqStubs.stub_provider_response_exception(
+          {ProviderWithoutTelemetry, [telemetry_metadata: %{feature: :summarizer}]},
+          exception
+        )
+
+      assert {:error, ^exception} = ReqAI.generate(provider, @request)
+
+      assert_receive {:telemetry, [:req_ai, :generate, :stop], _measurements,
+                      %{
+                        "error.type": "timeout",
+                        error: true,
+                        feature: :summarizer
                       }}
     end
 
