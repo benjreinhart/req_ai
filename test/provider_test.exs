@@ -11,10 +11,10 @@ defmodule ReqAI.ProviderTest do
     def build(req, _request, _opts), do: req
 
     @impl true
-    def request_metadata(_request, _opts), do: %{}
+    def request_metadata(metadata, _request, _opts), do: metadata
 
     @impl true
-    def response_metadata(_response, _opts), do: %{}
+    def response_metadata(metadata, _response, _opts), do: metadata
   end
 
   defmodule TestTranslator do
@@ -89,14 +89,17 @@ defmodule ReqAI.ProviderTest do
     ]
 
     Enum.each(providers, fn {provider, provider_name, operation_name} ->
-      assert provider.request_metadata(%{model: "request-model"}, stream: false) == %{
+      assert provider.request_metadata(%{feature: :summarizer}, %{model: "request-model"},
+               stream: false
+             ) == %{
                "gen_ai.operation.name": operation_name,
                "gen_ai.provider.name": provider_name,
                "gen_ai.request.model": "request-model",
-               "gen_ai.request.stream": false
+               "gen_ai.request.stream": false,
+               feature: :summarizer
              }
 
-      assert provider.request_metadata(%{}, stream: true) == %{
+      assert provider.request_metadata(%{}, %{}, stream: true) == %{
                "gen_ai.operation.name": operation_name,
                "gen_ai.provider.name": provider_name,
                "gen_ai.request.model": nil,
@@ -105,13 +108,14 @@ defmodule ReqAI.ProviderTest do
 
       response = Req.Response.new(status: 200, body: %{"model" => "response-model"})
 
-      assert provider.response_metadata(response, []) == %{
-               "gen_ai.response.model": "response-model"
+      assert provider.response_metadata(%{feature: :summarizer}, response, []) == %{
+               "gen_ai.response.model": "response-model",
+               feature: :summarizer
              }
 
       response = Req.Response.new(status: 200, body: %{})
 
-      assert provider.response_metadata(response, []) == %{"gen_ai.response.model": nil}
+      assert provider.response_metadata(%{}, response, []) == %{"gen_ai.response.model": nil}
     end)
   end
 end

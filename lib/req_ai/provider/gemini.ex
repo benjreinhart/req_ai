@@ -18,17 +18,20 @@ defmodule ReqAI.Provider.Gemini do
   end
 
   @impl true
-  def request_metadata(request, opts) do
-    %{
-      "gen_ai.operation.name": "generate_content",
-      "gen_ai.provider.name": "gcp.gemini",
-      "gen_ai.request.model": fetch_attr(request, :model),
-      "gen_ai.request.stream": opts[:stream]
-    }
+  def request_metadata(metadata, request, opts) do
+    Map.merge(
+      %{
+        "gen_ai.operation.name": "generate_content",
+        "gen_ai.provider.name": "gcp.gemini",
+        "gen_ai.request.model": fetch_attr(request, :model),
+        "gen_ai.request.stream": opts[:stream]
+      },
+      metadata
+    )
   end
 
   @impl true
-  def response_metadata(%Req.Response{body: body}, _opts) do
-    %{"gen_ai.response.model": fetch_attr(body, :model)}
+  def response_metadata(metadata, %Req.Response{body: body}, _opts) do
+    Map.merge(%{"gen_ai.response.model": fetch_attr(body, :model)}, metadata)
   end
 end

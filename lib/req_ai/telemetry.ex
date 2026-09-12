@@ -3,8 +3,17 @@ defmodule ReqAI.Telemetry do
 
   alias ReqAI.Provider
 
-  @callback request_metadata(request :: map() | keyword(), opts :: keyword()) :: map()
-  @callback response_metadata(Req.Response.t(), opts :: keyword()) :: map()
+  @callback request_metadata(
+              metadata :: map(),
+              request :: map() | keyword(),
+              opts :: keyword()
+            ) :: map()
+
+  @callback response_metadata(
+              metadata :: map(),
+              Req.Response.t(),
+              opts :: keyword()
+            ) :: map()
 
   @doc false
   def span(%Provider{telemetry: false}, _event_prefix, _request, _opts, fun) do
@@ -22,15 +31,17 @@ defmodule ReqAI.Telemetry do
   end
 
   defp start_metadata(telemetry, metadata, request, opts) do
-    apply(telemetry, :request_metadata, [request, opts]) |> Map.merge(metadata)
+    apply(telemetry, :request_metadata, [metadata, request, opts])
   end
 
   defp stop_metadata(telemetry, metadata, {:response, response, error?}, opts) do
-    metadata
-    |> Map.merge(apply(telemetry, :response_metadata, [response, opts]))
-    |> Map.put(:"http.response.status_code", response.status)
-    |> Map.put(:error, error?)
-    |> maybe_put_error_type(response.status, error?)
+    metadata =
+      metadata
+      |> Map.put(:"http.response.status_code", response.status)
+      |> Map.put(:error, error?)
+      |> maybe_put_error_type(response.status, error?)
+
+    apply(telemetry, :response_metadata, [metadata, response, opts])
   end
 
   defp stop_metadata(_telemetry, metadata, {:error, exception}, _opts) do

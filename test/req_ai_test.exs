@@ -41,15 +41,15 @@ defmodule ReqAITest do
     @behaviour ReqAI.Telemetry
 
     @impl true
-    def request_metadata(request, opts) do
-      send(self(), {:extract_request_telemetry, request, opts[:stream]})
-      %{custom_request: Map.fetch!(request, :model)}
+    def request_metadata(metadata, request, opts) do
+      send(self(), {:extract_request_telemetry, metadata, request, opts[:stream]})
+      Map.put(metadata, :custom_request, Map.fetch!(request, :model))
     end
 
     @impl true
-    def response_metadata(response, opts) do
-      send(self(), {:extract_response_telemetry, response.body, opts[:stream]})
-      %{custom_response: response.body["model"]}
+    def response_metadata(metadata, response, opts) do
+      send(self(), {:extract_response_telemetry, metadata, response.body, opts[:stream]})
+      Map.put(metadata, :custom_response, response.body["model"])
     end
   end
 
@@ -57,10 +57,10 @@ defmodule ReqAITest do
     @behaviour ReqAI.Telemetry
 
     @impl true
-    def request_metadata(_request, _opts), do: %{request_only: true}
+    def request_metadata(metadata, _request, _opts), do: Map.put(metadata, :request_only, true)
 
     @impl true
-    def response_metadata(_response, _opts), do: %{}
+    def response_metadata(metadata, _response, _opts), do: metadata
   end
 
   @request %{model: "gpt-5.4", input: "Say hello."}
@@ -278,7 +278,7 @@ defmodule ReqAITest do
 
       assert {:ok, _response} = ReqAI.generate(provider, @request)
 
-      assert_receive {:extract_request_telemetry, @request, false}
+      assert_receive {:extract_request_telemetry, %{feature: :summarizer}, @request, false}
 
       assert_receive {:telemetry, [:req_ai, :generate, :start], _measurements,
                       %{custom_request: "gpt-5.4", feature: :summarizer} = metadata}
@@ -286,7 +286,12 @@ defmodule ReqAITest do
       refute Map.has_key?(metadata, :"gen_ai.provider.name")
 
       assert_receive {:extract_response_telemetry,
-                      %{"model" => "gpt-5.4-2026-08-01", "status" => "completed"}, false}
+                      %{
+                        custom_request: "gpt-5.4",
+                        feature: :summarizer,
+                        "http.response.status_code": 200,
+                        error: false
+                      }, %{"model" => "gpt-5.4-2026-08-01", "status" => "completed"}, false}
 
       assert_receive {:telemetry, [:req_ai, :generate, :stop], _measurements,
                       %{

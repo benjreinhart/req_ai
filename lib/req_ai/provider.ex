@@ -44,7 +44,7 @@ defmodule ReqAI.Provider do
   The `:telemetry` option selects a module implementing the `ReqAI.Telemetry`
   behaviour and defaults to the provider module. Set it to `false` to disable
   telemetry emission. The `:telemetry_metadata` option accepts a map that is
-  included in every emitted telemetry event.
+  passed to the telemetry callbacks.
   """
   @spec new(module :: module(), opts :: keyword()) :: t()
   def new(module, opts) do
