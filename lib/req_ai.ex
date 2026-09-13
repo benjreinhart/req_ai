@@ -46,15 +46,16 @@ defmodule ReqAI do
   Streams a response into an accumulator.
 
   The provider builds the request with streaming enabled. `fun` receives each
-  value decoded by Req, the response as it is being received, and the current
+  provider-native event, the response as it is being received, and the current
   accumulator. It must return `{:cont, acc}` to continue or `{:halt, acc}` to
   stop consuming the response.
 
-  Req handles supported streaming formats such as SSE and NDJSON. By default,
-  the contents of each event remain provider-native; for example, an SSE
-  event's JSON payload remains in its `:data` field. When a translator
-  implements `ReqAI.Translator.event/3`, `fun` receives its return value. The
-  accompanying response remains the in-progress `Req.Response`.
+  Req handles transport formats such as SSE and NDJSON, then the provider
+  decodes the resulting values and drops protocol-only events. For the built-in
+  providers, an SSE event remains a map and its JSON payload is decoded in the
+  `:data` field. When a translator implements `ReqAI.Translator.event/3`, `fun`
+  receives its return value. The accompanying response remains the in-progress
+  `Req.Response`.
 
   The completed response remains the raw `Req.Response`. For a successful
   stream, the accumulator is the application-owned result of consuming the
@@ -90,17 +91,11 @@ defmodule ReqAI do
           {:cont, {acc, [event | error_body]}}
 
         event, response, {acc, error_body} ->
-          event = translate_event(provider, event, response, opts)
+          events = provider.module.decode_event(event, response, opts)
 
-          case fun.(event, response, acc) do
-            {:cont, acc} ->
-              {:cont, {acc, error_body}}
-
-            {:halt, acc} ->
-              {:halt, {acc, error_body}}
-
-            other ->
-              raise ArgumentError, "expected {:cont, acc} or {:halt, acc}, got: #{inspect(other)}"
+          case consume_events(provider, events, response, opts, fun, acc) do
+            {:cont, acc} -> {:cont, {acc, error_body}}
+            {:halt, acc} -> {:halt, {acc, error_body}}
           end
       end
 
@@ -136,6 +131,23 @@ defmodule ReqAI do
 
   defp translate_event(%Provider{translator: translator}, event, response, opts) do
     translate(translator, :event, [event, response, opts], event)
+  end
+
+  defp consume_events(_provider, [], _response, _opts, _fun, acc), do: {:cont, acc}
+
+  defp consume_events(provider, [event | events], response, opts, fun, acc) do
+    event = translate_event(provider, event, response, opts)
+
+    case fun.(event, response, acc) do
+      {:cont, acc} ->
+        consume_events(provider, events, response, opts, fun, acc)
+
+      {:halt, acc} ->
+        {:halt, acc}
+
+      other ->
+        raise ArgumentError, "expected {:cont, acc} or {:halt, acc}, got: #{inspect(other)}"
+    end
   end
 
   defp translate(nil, _callback, _args, value), do: value

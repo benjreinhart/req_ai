@@ -45,6 +45,19 @@ defmodule ReqAITest do
 
     @impl true
     def build(req, request, opts), do: ReqAI.Provider.OpenAI.build(req, request, opts)
+
+    @impl true
+    def decode_event(event, _response, _opts), do: [event]
+  end
+
+  defmodule ExpandingProvider do
+    @behaviour ReqAI.Provider
+
+    @impl true
+    def build(req, request, opts), do: ReqAI.Provider.OpenAI.build(req, request, opts)
+
+    @impl true
+    def decode_event(event, _response, _opts), do: [{:first, event}, {:second, event}]
   end
 
   defmodule CustomTelemetry do
@@ -76,7 +89,7 @@ defmodule ReqAITest do
     test "translates application input with streaming enabled before building the request" do
       provider =
         ReqStubs.stub_provider_response_stream(
-          {OpenAI, [translator: RequestTranslator, request_context: :test]},
+          {ProviderWithoutTelemetry, [translator: RequestTranslator, request_context: :test]},
           headers: [{"content-type", "application/octet-stream"}],
           body: [{:data, "Hello!"}]
         )
@@ -107,7 +120,9 @@ defmodule ReqAITest do
              ~s(event: response.output_text.delta\ndata: {"type":"response.output_text.delta",)},
             {:data, ~s("delta":"Hello!"}\n\n)},
             {:data,
-             ~s(event: response.completed\ndata: {"type":"response.completed","response":{"id":"resp_123","status":"completed"}}\n\n)}
+             ~s(event: response.completed\ndata: {"type":"response.completed","response":{"id":"resp_123","status":"completed"}}\n\n)},
+            {:data, ~s(event: ping\ndata: not-json\n\n)},
+            {:data, ~s(data: [DONE]\n\n)}
           ]
         )
 
@@ -122,8 +137,11 @@ defmodule ReqAITest do
       assert Req.Response.get_header(response, "content-type") == ["text/event-stream"]
 
       assert Enum.map(events, & &1.data) == [
-               ~s({"type":"response.output_text.delta","delta":"Hello!"}),
-               ~s({"type":"response.completed","response":{"id":"resp_123","status":"completed"}})
+               %{"type" => "response.output_text.delta", "delta" => "Hello!"},
+               %{
+                 "type" => "response.completed",
+                 "response" => %{"id" => "resp_123", "status" => "completed"}
+               }
              ]
 
       assert_receive {:request, request}
@@ -137,7 +155,7 @@ defmodule ReqAITest do
 
     test "stream allows the callback to halt consumption" do
       provider =
-        ReqStubs.stub_provider_response_stream(OpenAI,
+        ReqStubs.stub_provider_response_stream(ProviderWithoutTelemetry,
           headers: [{"content-type", "application/octet-stream"}],
           body: [{:data, "first"}, {:data, "second"}]
         )
@@ -153,7 +171,7 @@ defmodule ReqAITest do
     test "translates streamed events and preserves the completed HTTP response" do
       provider =
         ReqStubs.stub_provider_response_stream(
-          {OpenAI, [translator: ResponseTranslator]},
+          {ProviderWithoutTelemetry, [translator: ResponseTranslator]},
           headers: [{"content-type", "application/octet-stream"}],
           body: [{:data, "Hello!"}]
         )
@@ -162,6 +180,19 @@ defmodule ReqAITest do
                ReqAI.stream(provider, @request, [], fn event, response, events ->
                  assert %Req.Response{status: 200} = response
                  {:cont, [event | events]}
+               end)
+    end
+
+    test "passes every event returned by the provider decoder to the callback" do
+      provider =
+        ReqStubs.stub_provider_response_stream(ExpandingProvider,
+          headers: [{"content-type", "application/octet-stream"}],
+          body: [{:data, "Hello!"}]
+        )
+
+      assert {:ok, %Req.Response{status: 200}, [first: "Hello!", second: "Hello!"]} =
+               ReqAI.stream(provider, @request, [], fn event, _response, events ->
+                 {:cont, events ++ [event]}
                end)
     end
 

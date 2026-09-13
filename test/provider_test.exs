@@ -8,6 +8,9 @@ defmodule ReqAI.ProviderTest do
 
     @impl true
     def build(req, _request, _opts), do: req
+
+    @impl true
+    def decode_event(event, _response, _opts), do: [event]
   end
 
   defmodule TestTranslator do
@@ -110,6 +113,32 @@ defmodule ReqAI.ProviderTest do
       response = Req.Response.new(status: 200, body: %{})
 
       assert provider.response_metadata(%{}, response, []) == %{"gen_ai.response.model": nil}
+    end)
+  end
+
+  test "built-in providers decode JSON SSE events and discard protocol events" do
+    providers = [
+      ReqAI.Provider.Anthropic,
+      ReqAI.Provider.Gemini,
+      ReqAI.Provider.OpenAI,
+      ReqAI.Provider.OpenRouter,
+      ReqAI.Provider.XAI
+    ]
+
+    response = Req.Response.new(status: 200)
+    event = %{event: "response.output_text.delta", data: ~s({"delta":"Hello!"})}
+    decoded_event = %{event | data: %{"delta" => "Hello!"}}
+
+    Enum.each(providers, fn provider ->
+      assert provider.decode_event(event, response, stream: true) == [decoded_event]
+      assert provider.decode_event(%{event: "ping", data: "not-json"}, response, []) == []
+      assert provider.decode_event(%{data: "[DONE]"}, response, []) == []
+      assert provider.decode_event(%{data: ""}, response, []) == []
+      assert provider.decode_event(:unknown, response, []) == []
+
+      assert_raise RuntimeError, ~s(non-JSON SSE data "not-json"), fn ->
+        provider.decode_event(%{data: "not-json"}, response, [])
+      end
     end)
   end
 end

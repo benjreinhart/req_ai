@@ -6,7 +6,7 @@ defmodule ReqAI.Provider.OpenRouter do
   @behaviour ReqAI.Provider
   @behaviour ReqAI.Telemetry
 
-  import ReqAI.Provider.Utils, only: [set_stream: 2, fetch_attr: 2]
+  import ReqAI.Provider.Utils, only: [decode_json_sse: 1, set_stream: 2, fetch_attr: 2]
 
   @url "https://openrouter.ai/api/v1/chat/completions"
 
@@ -16,6 +16,9 @@ defmodule ReqAI.Provider.OpenRouter do
     |> Req.Request.put_new_option(:base_url, @url)
     |> Req.merge(method: :post, json: set_stream(request, opts[:stream]))
   end
+
+  @impl true
+  def decode_event(event, _response, _opts), do: decode_json_sse(event)
 
   @impl true
   def request_metadata(metadata, request, _opts) do

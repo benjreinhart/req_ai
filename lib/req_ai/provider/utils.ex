@@ -1,6 +1,21 @@
 defmodule ReqAI.Provider.Utils do
   @moduledoc false
 
+  def decode_json_sse(%{event: "ping"}), do: []
+  def decode_json_sse(%{data: data}) when data in ["", "[DONE]"], do: []
+
+  def decode_json_sse(%{data: data} = event) when is_binary(data) do
+    case JSON.decode(data) do
+      {:ok, json} ->
+        [%{event | data: json}]
+
+      {:error, _} ->
+        raise %RuntimeError{message: "non-JSON SSE data #{inspect(data)}"}
+    end
+  end
+
+  def decode_json_sse(_event), do: []
+
   def set_stream(request, value) when is_map(request) do
     Map.drop(request, [:stream, "stream"]) |> Map.put(:stream, value)
   end

@@ -16,6 +16,16 @@ defmodule ReqAI.Provider do
               opts :: keyword()
             ) :: Req.Request.t()
 
+  @doc """
+  Decodes a raw stream event produced by Req (an SSE event map, an NDJSON
+  line, ...) into zero or more application events.
+  """
+  @callback decode_event(
+              event :: term(),
+              response :: Req.Response.t(),
+              opts :: keyword()
+            ) :: [term()]
+
   @enforce_keys [:module, :req, :opts]
   defstruct [:module, :req, :opts, :translator, :telemetry, telemetry_metadata: %{}]
 
