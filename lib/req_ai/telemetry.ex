@@ -33,6 +33,15 @@ defmodule ReqAI.Telemetry do
   end
 
   defp start_metadata(telemetry, metadata, request, opts) do
+    # From the otel genai semconv spec:
+    # gen_ai.request.stream: If and only if the request is streaming. If unset, the request is assumed to be non-streaming.
+    metadata =
+      if opts[:stream] do
+        Map.put(metadata, :"gen_ai.request.stream", true)
+      else
+        Map.delete(metadata, :"gen_ai.request.stream")
+      end
+
     extract_metadata(telemetry, :request_metadata, [metadata, request, opts], metadata)
   end
 

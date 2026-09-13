@@ -82,21 +82,22 @@ defmodule ReqAI.ProviderTest do
     ]
 
     Enum.each(providers, fn {provider, provider_name, operation_name} ->
-      assert provider.request_metadata(%{feature: :summarizer}, %{model: "request-model"},
+      assert provider.request_metadata(
+               %{feature: :summarizer, "gen_ai.request.stream": true},
+               %{model: "request-model"},
                stream: false
              ) == %{
                "gen_ai.operation.name": operation_name,
                "gen_ai.provider.name": provider_name,
                "gen_ai.request.model": "request-model",
-               "gen_ai.request.stream": false,
+               "gen_ai.request.stream": true,
                feature: :summarizer
              }
 
       assert provider.request_metadata(%{}, %{}, stream: true) == %{
                "gen_ai.operation.name": operation_name,
                "gen_ai.provider.name": provider_name,
-               "gen_ai.request.model": nil,
-               "gen_ai.request.stream": true
+               "gen_ai.request.model": nil
              }
 
       response = Req.Response.new(status: 200, body: %{"model" => "response-model"})
