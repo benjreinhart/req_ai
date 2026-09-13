@@ -6,7 +6,8 @@ defmodule ReqAI.Provider.Gemini do
   @behaviour ReqAI.Provider
   @behaviour ReqAI.Telemetry
 
-  import ReqAI.Provider.Utils, only: [decode_json_sse: 1, set_stream: 2, fetch_attr: 2]
+  import ReqAI.Provider.Utils,
+    only: [decode_json_sse: 1, set_stream: 2, fetch_attr: 2, put_attr: 3]
 
   @url "https://generativelanguage.googleapis.com/v1beta/interactions"
 
@@ -23,13 +24,43 @@ defmodule ReqAI.Provider.Gemini do
   @impl true
   def request_metadata(metadata, request, _opts) do
     metadata
-    |> Map.put_new(:"gen_ai.operation.name", "generate_content")
-    |> Map.put_new(:"gen_ai.provider.name", "gcp.gemini")
-    |> Map.put_new(:"gen_ai.request.model", fetch_attr(request, :model))
+    |> put_attr(:"gen_ai.operation.name", "generate_content")
+    |> put_attr(:"gen_ai.provider.name", "gcp.gemini")
+    |> put_attr(:"gen_ai.request.model", fetch_attr(request, :model))
   end
 
   @impl true
   def response_metadata(metadata, %Req.Response{body: body}, _opts) do
-    Map.put_new(metadata, :"gen_ai.response.model", fetch_attr(body, :model))
+    put_attr(metadata, :"gen_ai.response.model", fetch_attr(body, :model))
   end
+
+  @impl true
+  def event_metadata(metadata, %{data: %{"interaction" => interaction}}, _, _) do
+    metadata =
+      case interaction do
+        %{"model" => model} ->
+          put_attr(metadata, :"gen_ai.response.model", model)
+
+        _ ->
+          metadata
+      end
+
+    case interaction do
+      %{
+        "usage" => %{
+          "total_input_tokens" => input_tokens,
+          "total_output_tokens" => output_tokens
+        }
+      } ->
+        metadata
+        |> put_attr(:"gen_ai.usage.input_tokens", input_tokens)
+        |> put_attr(:"gen_ai.usage.output_tokens", output_tokens)
+
+      _ ->
+        metadata
+    end
+  end
+
+  @impl true
+  def event_metadata(metadata, _event, _response, _opts), do: metadata
 end

@@ -74,6 +74,12 @@ defmodule ReqAITest do
       send(self(), {:extract_response_telemetry, metadata, response.body, opts[:stream]})
       Map.put(metadata, :custom_response, response.body["model"])
     end
+
+    @impl true
+    def event_metadata(metadata, event, response, opts) do
+      send(self(), {:extract_event_telemetry, metadata, event, response.status, opts[:stream]})
+      Map.put(metadata, :custom_event, event.data["type"])
+    end
   end
 
   defmodule MinimalTelemetry do
@@ -86,6 +92,79 @@ defmodule ReqAITest do
   @request %{model: "gpt-5.4", input: "Say hello."}
 
   describe "stream/4" do
+    test "emits telemetry and folds every decoded event into the stop metadata" do
+      attach_stream_telemetry()
+
+      provider =
+        ReqStubs.stub_provider_response_stream(OpenAI,
+          body: [
+            {:data,
+             ~s(event: response.created\ndata: {"type":"response.created","response":{"model":"gpt-5.4-2026-08-01","usage":null}}\n\n)},
+            {:data,
+             ~s(event: response.completed\ndata: {"type":"response.completed","response":{"model":"gpt-5.4-2026-08-01","usage":{"input_tokens":11,"output_tokens":4}}}\n\n)}
+          ]
+        )
+
+      assert {:ok, %Req.Response{status: 200}, 2} =
+               ReqAI.stream(provider, @request, 0, fn _event, _response, count ->
+                 {:cont, count + 1}
+               end)
+
+      assert_receive {:telemetry, [:req_ai, :stream, :start], _measurements,
+                      %{
+                        "gen_ai.request.stream": true,
+                        "gen_ai.request.model": "gpt-5.4",
+                        "gen_ai.provider.name": "openai"
+                      }}
+
+      assert_receive {:telemetry, [:req_ai, :stream, :stop], %{duration: duration},
+                      %{
+                        "http.response.status_code": 200,
+                        "gen_ai.request.stream": true,
+                        "gen_ai.response.model": "gpt-5.4-2026-08-01",
+                        "gen_ai.usage.input_tokens": 11,
+                        "gen_ai.usage.output_tokens": 4,
+                        error: false
+                      }}
+
+      assert duration >= 0
+    end
+
+    test "uses the configured telemetry event callback with decoded provider events" do
+      attach_stream_telemetry()
+
+      provider =
+        ReqStubs.stub_provider_response_stream(
+          {OpenAI, [telemetry: CustomTelemetry, telemetry_metadata: %{feature: :summarizer}]},
+          body: [
+            {:data,
+             ~s(event: response.completed\ndata: {"type":"response.completed","response":{"model":"gpt-5.4-2026-08-01"}}\n\n)}
+          ]
+        )
+
+      assert {:ok, _response, :initial} =
+               ReqAI.stream(provider, @request, :initial, fn event, _response, acc ->
+                 assert event.data["type"] == "response.completed"
+                 {:cont, acc}
+               end)
+
+      assert_receive {:extract_event_telemetry,
+                      %{
+                        custom_request: "gpt-5.4",
+                        feature: :summarizer,
+                        "gen_ai.request.stream": true
+                      }, %{data: %{"type" => "response.completed"}}, 200, true}
+
+      assert_receive {:telemetry, [:req_ai, :stream, :stop], _measurements,
+                      %{
+                        custom_event: "response.completed",
+                        custom_request: "gpt-5.4",
+                        feature: :summarizer
+                      }}
+
+      refute_receive {:extract_response_telemetry, _, _, true}
+    end
+
     test "translates application input with streaming enabled before building the request" do
       provider =
         ReqStubs.stub_provider_response_stream(
@@ -614,6 +693,25 @@ defmodule ReqAITest do
           [:req_ai, :generate, :start],
           [:req_ai, :generate, :stop],
           [:req_ai, :generate, :exception]
+        ],
+        &__MODULE__.handle_telemetry_event/4,
+        test_pid
+      )
+
+    on_exit(fn -> :telemetry.detach(handler_id) end)
+  end
+
+  defp attach_stream_telemetry do
+    test_pid = self()
+    handler_id = {__MODULE__, test_pid, make_ref()}
+
+    :ok =
+      :telemetry.attach_many(
+        handler_id,
+        [
+          [:req_ai, :stream, :start],
+          [:req_ai, :stream, :stop],
+          [:req_ai, :stream, :exception]
         ],
         &__MODULE__.handle_telemetry_event/4,
         test_pid

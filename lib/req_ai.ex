@@ -26,7 +26,7 @@ defmodule ReqAI do
     request = translate_request(provider, request, opts)
     req = module.build(req, request, opts)
 
-    Telemetry.span(provider, [:req_ai, :generate], request, opts, fn ->
+    Telemetry.span(provider, [:req_ai, :generate], request, opts, fn _metadata ->
       case Req.request(req) do
         {:ok, %Req.Response{status: status} = response} when status in 200..299 ->
           result = {:ok, response, translate_response(provider, response, opts)}
@@ -83,38 +83,40 @@ defmodule ReqAI do
 
   def stream(%Provider{} = provider, request, acc, fun) when is_function(fun, 3) do
     opts = Keyword.put(provider.opts, :stream, true)
-    req = build_request(provider, request, opts)
+    request = translate_request(provider, request, opts)
+    req = provider.module.build(provider.req, request, opts)
 
     wrapped_fun =
       fn
-        event, %{status: status}, {acc, error_body} when status not in 200..299 ->
-          {:cont, {acc, [event | error_body]}}
+        event, %{status: status}, {acc, error_body, metadata} when status not in 200..299 ->
+          {:cont, {acc, [event | error_body], metadata}}
 
-        event, response, {acc, error_body} ->
+        event, response, {acc, error_body, metadata} ->
           events = provider.module.decode_event(event, response, opts)
 
-          case consume_events(provider, events, response, opts, fun, acc) do
-            {:cont, acc} -> {:cont, {acc, error_body}}
-            {:halt, acc} -> {:halt, {acc, error_body}}
+          case consume_events(provider, events, response, opts, fun, acc, metadata) do
+            {:cont, acc, metadata} -> {:cont, {acc, error_body, metadata}}
+            {:halt, acc, metadata} -> {:halt, {acc, error_body, metadata}}
           end
       end
 
-    case Req.stream(req, {acc, []}, wrapped_fun) do
-      {:ok, %Req.Response{} = response, {acc, _}} when response.status in 200..299 ->
-        {:ok, response, acc}
+    Telemetry.span(provider, [:req_ai, :stream], request, opts, fn metadata ->
+      case Req.stream(req, {acc, [], metadata}, wrapped_fun) do
+        {:ok, %Req.Response{} = response, {acc, _, metadata}}
+        when response.status in 200..299 ->
+          result = {:ok, response, acc}
+          {result, {:stream, response, false, metadata}}
 
-      {:ok, response, {_acc, error_body}} ->
-        response = put_error_body(response, error_body)
-        {:error, response, translate_error(provider, response, opts)}
+        {:ok, response, {_acc, error_body, metadata}} ->
+          response = put_error_body(response, error_body)
+          result = {:error, response, translate_error(provider, response, opts)}
+          {result, {:stream, response, true, metadata}}
 
-      {:error, exception, response, {acc, _error_body}} ->
-        {:error, exception, response, acc}
-    end
-  end
-
-  defp build_request(%Provider{module: provider, req: req} = configured_provider, request, opts) do
-    request = translate_request(configured_provider, request, opts)
-    provider.build(req, request, opts)
+        {:error, exception, response, {acc, _error_body, metadata}} ->
+          result = {:error, exception, response, acc}
+          {result, {:stream_error, exception, metadata}}
+      end
+    end)
   end
 
   defp translate_request(%Provider{translator: translator}, request, opts) do
@@ -133,17 +135,22 @@ defmodule ReqAI do
     translate(translator, :event, [event, response, opts], event)
   end
 
-  defp consume_events(_provider, [], _response, _opts, _fun, acc), do: {:cont, acc}
+  defp consume_events(_provider, [], _response, _opts, _fun, acc, metadata) do
+    {:cont, acc, metadata}
+  end
 
-  defp consume_events(provider, [event | events], response, opts, fun, acc) do
-    event = translate_event(provider, event, response, opts)
+  defp consume_events(provider, [event | events], response, opts, fun, acc, metadata) do
+    metadata =
+      Telemetry.event_metadata(provider.telemetry, metadata, event, response, opts)
 
-    case fun.(event, response, acc) do
+    translated_event = translate_event(provider, event, response, opts)
+
+    case fun.(translated_event, response, acc) do
       {:cont, acc} ->
-        consume_events(provider, events, response, opts, fun, acc)
+        consume_events(provider, events, response, opts, fun, acc, metadata)
 
       {:halt, acc} ->
-        {:halt, acc}
+        {:halt, acc, metadata}
 
       other ->
         raise ArgumentError, "expected {:cont, acc} or {:halt, acc}, got: #{inspect(other)}"

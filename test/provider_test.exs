@@ -99,8 +99,7 @@ defmodule ReqAI.ProviderTest do
 
       assert provider.request_metadata(%{}, %{}, stream: true) == %{
                "gen_ai.operation.name": operation_name,
-               "gen_ai.provider.name": provider_name,
-               "gen_ai.request.model": nil
+               "gen_ai.provider.name": provider_name
              }
 
       response = Req.Response.new(status: 200, body: %{"model" => "response-model"})
@@ -112,8 +111,116 @@ defmodule ReqAI.ProviderTest do
 
       response = Req.Response.new(status: 200, body: %{})
 
-      assert provider.response_metadata(%{}, response, []) == %{"gen_ai.response.model": nil}
+      assert provider.response_metadata(%{}, response, []) == %{}
     end)
+  end
+
+  test "built-in providers fold telemetry from decoded stream events" do
+    response = Req.Response.new(status: 200)
+
+    anthropic_metadata =
+      ReqAI.Provider.Anthropic.event_metadata(
+        %{feature: :summarizer},
+        %{
+          data: %{
+            "type" => "message_start",
+            "message" => %{
+              "model" => "claude-sonnet-4-5",
+              "usage" => %{"input_tokens" => 25, "output_tokens" => 1}
+            }
+          }
+        },
+        response,
+        []
+      )
+
+    assert ReqAI.Provider.Anthropic.event_metadata(
+             anthropic_metadata,
+             %{
+               data: %{
+                 "type" => "message_delta",
+                 "delta" => %{"stop_reason" => "end_turn"},
+                 "usage" => %{"output_tokens" => 15}
+               }
+             },
+             response,
+             []
+           ) == %{
+             "gen_ai.response.finish_reasons": ["end_turn"],
+             "gen_ai.response.model": "claude-sonnet-4-5",
+             "gen_ai.usage.input_tokens": 25,
+             "gen_ai.usage.output_tokens": 15,
+             feature: :summarizer
+           }
+
+    responses_event = %{
+      data: %{
+        "type" => "response.completed",
+        "response" => %{
+          "model" => "response-model",
+          "usage" => %{"input_tokens" => 12, "output_tokens" => 8}
+        }
+      }
+    }
+
+    for provider <- [ReqAI.Provider.OpenAI, ReqAI.Provider.XAI] do
+      assert provider.event_metadata(%{}, responses_event, response, []) == %{
+               "gen_ai.response.model": "response-model",
+               "gen_ai.usage.input_tokens": 12,
+               "gen_ai.usage.output_tokens": 8
+             }
+    end
+
+    gemini_event = %{
+      data: %{
+        "event_type" => "interaction.completed",
+        "interaction" => %{
+          "model" => "gemini-3-pro",
+          "usage" => %{"total_input_tokens" => 19, "total_output_tokens" => 7}
+        }
+      }
+    }
+
+    assert ReqAI.Provider.Gemini.event_metadata(%{}, gemini_event, response, []) == %{
+             "gen_ai.response.model": "gemini-3-pro",
+             "gen_ai.usage.input_tokens": 19,
+             "gen_ai.usage.output_tokens": 7
+           }
+
+    open_router_event = %{
+      data: %{
+        "model" => "openai/gpt-5",
+        "choices" => [%{"finish_reason" => "stop"}],
+        "usage" => %{"prompt_tokens" => 10, "completion_tokens" => 4}
+      }
+    }
+
+    assert ReqAI.Provider.OpenRouter.event_metadata(
+             %{},
+             open_router_event,
+             response,
+             []
+           ) == %{
+             "gen_ai.response.finish_reasons": ["stop"],
+             "gen_ai.response.model": "openai/gpt-5",
+             "gen_ai.usage.input_tokens": 10,
+             "gen_ai.usage.output_tokens": 4
+           }
+  end
+
+  test "built-in providers do not add nil attributes from stream events" do
+    response = Req.Response.new(status: 200)
+
+    for provider <- [
+          ReqAI.Provider.Anthropic,
+          ReqAI.Provider.Gemini,
+          ReqAI.Provider.OpenAI,
+          ReqAI.Provider.OpenRouter,
+          ReqAI.Provider.XAI
+        ] do
+      assert provider.event_metadata(%{}, %{data: %{}}, response, []) == %{}
+      assert provider.event_metadata(%{}, :unknown, response, []) == %{}
+    end
   end
 
   test "built-in providers decode JSON SSE events and discard protocol events" do

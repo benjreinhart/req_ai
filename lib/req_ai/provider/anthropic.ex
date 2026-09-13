@@ -6,7 +6,8 @@ defmodule ReqAI.Provider.Anthropic do
   @behaviour ReqAI.Provider
   @behaviour ReqAI.Telemetry
 
-  import ReqAI.Provider.Utils, only: [decode_json_sse: 1, set_stream: 2, fetch_attr: 2]
+  import ReqAI.Provider.Utils,
+    only: [decode_json_sse: 1, set_stream: 2, fetch_attr: 2, put_attr: 3]
 
   @url "https://api.anthropic.com/v1/messages"
 
@@ -27,13 +28,45 @@ defmodule ReqAI.Provider.Anthropic do
   @impl true
   def request_metadata(metadata, request, _opts) do
     metadata
-    |> Map.put_new(:"gen_ai.operation.name", "chat")
-    |> Map.put_new(:"gen_ai.provider.name", "anthropic")
-    |> Map.put_new(:"gen_ai.request.model", fetch_attr(request, :model))
+    |> put_attr(:"gen_ai.operation.name", "chat")
+    |> put_attr(:"gen_ai.provider.name", "anthropic")
+    |> put_attr(:"gen_ai.request.model", fetch_attr(request, :model))
   end
 
   @impl true
   def response_metadata(metadata, %Req.Response{body: body}, _opts) do
-    Map.put_new(metadata, :"gen_ai.response.model", fetch_attr(body, :model))
+    put_attr(metadata, :"gen_ai.response.model", fetch_attr(body, :model))
   end
+
+  @impl true
+  def event_metadata(metadata, %{data: %{"type" => "message_start", "message" => message}}, _, _) do
+    case message do
+      %{"model" => model, "usage" => %{"input_tokens" => input_tokens}} ->
+        metadata
+        |> put_attr(:"gen_ai.response.model", model)
+        |> put_attr(:"gen_ai.usage.input_tokens", input_tokens)
+
+      _ ->
+        metadata
+    end
+  end
+
+  @impl true
+  def event_metadata(metadata, %{data: %{"type" => "message_delta"} = data}, _, _) do
+    case data do
+      %{
+        "delta" => %{"stop_reason" => stop_reason},
+        "usage" => %{"output_tokens" => output_tokens}
+      } ->
+        metadata
+        |> put_attr(:"gen_ai.response.finish_reasons", stop_reason && [stop_reason])
+        |> put_attr(:"gen_ai.usage.output_tokens", output_tokens)
+
+      _ ->
+        metadata
+    end
+  end
+
+  @impl true
+  def event_metadata(metadata, _event, _response, _opts), do: metadata
 end

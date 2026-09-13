@@ -34,4 +34,7 @@ defmodule ReqAI.Provider.Utils do
   def fetch_attr(source, key) when is_list(source) and is_atom(key) do
     Keyword.get(source, key)
   end
+
+  def put_attr(metadata, _key, nil), do: metadata
+  def put_attr(metadata, key, value), do: Map.put(metadata, key, value)
 end
