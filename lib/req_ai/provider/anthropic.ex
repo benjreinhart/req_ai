@@ -26,18 +26,14 @@ defmodule ReqAI.Provider.Anthropic do
 
   @impl true
   def request_metadata(metadata, request, _opts) do
-    Map.merge(
-      %{
-        "gen_ai.operation.name": "chat",
-        "gen_ai.provider.name": "anthropic",
-        "gen_ai.request.model": fetch_attr(request, :model)
-      },
-      metadata
-    )
+    metadata
+    |> Map.put_new(:"gen_ai.operation.name", "chat")
+    |> Map.put_new(:"gen_ai.provider.name", "anthropic")
+    |> Map.put_new(:"gen_ai.request.model", fetch_attr(request, :model))
   end
 
   @impl true
   def response_metadata(metadata, %Req.Response{body: body}, _opts) do
-    Map.merge(%{"gen_ai.response.model": fetch_attr(body, :model)}, metadata)
+    Map.put_new(metadata, :"gen_ai.response.model", fetch_attr(body, :model))
   end
 end
