@@ -6,8 +6,7 @@ defmodule ReqAI.Provider.Anthropic do
   @behaviour ReqAI.Provider
   @behaviour ReqAI.Telemetry
 
-  import ReqAI.Provider.Utils,
-    only: [decode_json_sse: 1, set_stream: 2, fetch_attr: 2, put_attr: 3]
+  import ReqAI.Provider.Utils
 
   @url "https://api.anthropic.com/v1/messages"
 
@@ -16,10 +15,12 @@ defmodule ReqAI.Provider.Anthropic do
 
   @impl true
   def build(%Req.Request{} = req, request, opts) do
+    request = json_object!(request) |> set_stream(opts[:stream])
+
     req
     |> Req.Request.put_new_option(:base_url, @url)
     |> Req.Request.put_new_header(@version_header, @version)
-    |> Req.merge(method: :post, json: set_stream(request, opts[:stream]))
+    |> Req.merge(method: :post, json: request)
   end
 
   @impl true

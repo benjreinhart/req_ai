@@ -16,12 +16,20 @@ defmodule ReqAI.Provider.Utils do
 
   def decode_json_sse(_event), do: []
 
-  def set_stream(request, value) when is_map(request) do
-    Map.drop(request, [:stream, "stream"]) |> Map.put(:stream, value)
+  def json_object!(request) when is_map(request) do
+    request
   end
 
-  def set_stream(request, value) when is_list(request) do
-    Keyword.put(request, :stream, value)
+  def json_object!(request) do
+    if Keyword.keyword?(request) do
+      Map.new(request)
+    else
+      raise ArgumentError, "expected a request map or keyword list, got: #{inspect(request)}"
+    end
+  end
+
+  def set_stream(request, value) when is_map(request) do
+    Map.drop(request, [:stream, "stream"]) |> Map.put(:stream, value)
   end
 
   def fetch_attr(source, key) when is_map(source) and is_atom(key) do

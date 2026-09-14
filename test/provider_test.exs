@@ -75,6 +75,32 @@ defmodule ReqAI.ProviderTest do
     assert provider.opts == [model: "test-model"]
   end
 
+  test "built-in providers convert keyword request bodies to JSON object maps" do
+    for provider <- [
+          ReqAI.Provider.Anthropic,
+          ReqAI.Provider.Gemini,
+          ReqAI.Provider.OpenAI,
+          ReqAI.Provider.OpenRouter,
+          ReqAI.Provider.XAI
+        ] do
+      request = provider.build(Req.new(), [model: "test-model", stream: true], stream: false)
+
+      assert request.options[:json] == %{model: "test-model", stream: false}
+    end
+  end
+
+  test "built-in providers reject request lists that are not keyword lists" do
+    assert_raise ArgumentError,
+                 "expected a request map or keyword list, got: [\"not a keyword entry\"]",
+                 fn ->
+                   ReqAI.Provider.OpenAI.build(
+                     Req.new(),
+                     ["not a keyword entry"],
+                     stream: false
+                   )
+                 end
+  end
+
   test "built-in providers return request and response telemetry" do
     providers = [
       {ReqAI.Provider.Anthropic, "anthropic", "chat"},
