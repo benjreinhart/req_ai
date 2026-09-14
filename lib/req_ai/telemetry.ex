@@ -31,7 +31,7 @@ defmodule ReqAI.Telemetry do
 
   @doc false
   def span(%Provider{telemetry: false}, _event_prefix, _request, _opts, fun) do
-    {result, _source} = fun.(%{})
+    {result, _measurements, _source} = fun.(%{})
     result
   end
 
@@ -39,8 +39,9 @@ defmodule ReqAI.Telemetry do
     metadata = start_metadata(provider.telemetry, provider.telemetry_metadata, request, opts)
 
     :telemetry.span(event_prefix, metadata, fn ->
-      {result, source} = fun.(metadata)
-      {result, stop_metadata(provider.telemetry, metadata, source, opts)}
+      {result, measurements, source} = fun.(metadata)
+
+      {result, measurements, stop_metadata(provider.telemetry, metadata, source, opts)}
     end)
   end
 

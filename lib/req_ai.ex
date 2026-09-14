@@ -30,14 +30,14 @@ defmodule ReqAI do
       case Req.request(req) do
         {:ok, %Req.Response{status: status} = response} when status in 200..299 ->
           result = {:ok, response, translate_response(provider, response, opts)}
-          {result, {:response, response, false}}
+          {result, %{}, {:response, response, false}}
 
         {:ok, response} ->
           result = {:error, response, translate_error(provider, response, opts)}
-          {result, {:response, response, true}}
+          {result, %{}, {:response, response, true}}
 
         {:error, exception} = error ->
-          {error, {:error, exception}}
+          {error, %{}, {:error, exception}}
       end
     end)
   end
@@ -105,16 +105,16 @@ defmodule ReqAI do
         {:ok, %Req.Response{} = response, {acc, _, metadata}}
         when response.status in 200..299 ->
           result = {:ok, response, acc}
-          {result, {:stream, response, false, metadata}}
+          {result, %{}, {:stream, response, false, metadata}}
 
         {:ok, response, {_acc, error_body, metadata}} ->
           response = put_error_body(response, error_body)
           result = {:error, response, translate_error(provider, response, opts)}
-          {result, {:stream, response, true, metadata}}
+          {result, %{}, {:stream, response, true, metadata}}
 
         {:error, exception, response, {acc, _error_body, metadata}} ->
           result = {:error, exception, response, acc}
-          {result, {:stream_error, exception, metadata}}
+          {result, %{}, {:stream_error, exception, metadata}}
       end
     end)
   end

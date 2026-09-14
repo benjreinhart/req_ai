@@ -682,6 +682,40 @@ defmodule ReqAITest do
     end
   end
 
+  test "telemetry span forwards additional stop measurements" do
+    test_pid = self()
+    handler_id = {__MODULE__, test_pid, make_ref()}
+    event_prefix = [:req_ai, :test_span]
+
+    :ok =
+      :telemetry.attach(
+        handler_id,
+        event_prefix ++ [:stop],
+        &__MODULE__.handle_telemetry_event/4,
+        test_pid
+      )
+
+    on_exit(fn -> :telemetry.detach(handler_id) end)
+
+    provider = ReqAI.Provider.new(ProviderWithoutTelemetry, [])
+    response = Req.Response.new(status: 200)
+
+    assert :result =
+             ReqAI.Telemetry.span(provider, event_prefix, %{}, [], fn metadata ->
+               {:result, %{custom_measurement: 42}, {:stream, response, false, metadata}}
+             end)
+
+    assert_receive {:telemetry, [:req_ai, :test_span, :stop],
+                    %{
+                      custom_measurement: 42,
+                      duration: duration,
+                      monotonic_time: monotonic_time
+                    }, %{"http.response.status_code": 200, error: false}}
+
+    assert duration >= 0
+    assert is_integer(monotonic_time)
+  end
+
   defp attach_generate_telemetry do
     test_pid = self()
     handler_id = {__MODULE__, test_pid, make_ref()}
