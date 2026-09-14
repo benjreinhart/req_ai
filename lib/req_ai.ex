@@ -88,35 +88,58 @@ defmodule ReqAI do
 
     wrapped_fun =
       fn
-        event, %{status: status}, {acc, error_body, metadata} when status not in 200..299 ->
-          {:cont, {acc, [event | error_body], metadata}}
+        event, %{status: status}, {acc, error_body, metadata, start_time, time_to_first_chunk}
+        when status not in 200..299 ->
+          {:cont, {acc, [event | error_body], metadata, start_time, time_to_first_chunk}}
 
-        event, response, {acc, error_body, metadata} ->
+        event, response, {acc, error_body, metadata, start_time, time_to_first_chunk} ->
+          received_at = System.monotonic_time()
           events = provider.module.decode_event(event, response, opts)
 
+          time_to_first_chunk =
+            record_time_to_first_chunk(time_to_first_chunk, received_at - start_time)
+
           case consume_events(provider, events, response, opts, fun, acc, metadata) do
-            {:cont, acc, metadata} -> {:cont, {acc, error_body, metadata}}
-            {:halt, acc, metadata} -> {:halt, {acc, error_body, metadata}}
+            {:cont, acc, metadata} ->
+              {:cont, {acc, error_body, metadata, start_time, time_to_first_chunk}}
+
+            {:halt, acc, metadata} ->
+              {:halt, {acc, error_body, metadata, start_time, time_to_first_chunk}}
           end
       end
 
     Telemetry.span(provider, [:req_ai, :stream], request, opts, fn metadata ->
-      case Req.stream(req, {acc, [], metadata}, wrapped_fun) do
-        {:ok, %Req.Response{} = response, {acc, _, metadata}}
+      start_time = System.monotonic_time()
+
+      case Req.stream(req, {acc, [], metadata, start_time, nil}, wrapped_fun) do
+        {:ok, %Req.Response{} = response, {acc, _, metadata, _start_time, time_to_first_chunk}}
         when response.status in 200..299 ->
           result = {:ok, response, acc}
-          {result, %{}, {:stream, response, false, metadata}}
 
-        {:ok, response, {_acc, error_body, metadata}} ->
+          {result, stream_measurements(time_to_first_chunk), {:stream, response, false, metadata}}
+
+        {:ok, response, {_acc, error_body, metadata, _start_time, time_to_first_chunk}} ->
           response = put_error_body(response, error_body)
           result = {:error, response, translate_error(provider, response, opts)}
-          {result, %{}, {:stream, response, true, metadata}}
 
-        {:error, exception, response, {acc, _error_body, metadata}} ->
+          {result, stream_measurements(time_to_first_chunk), {:stream, response, true, metadata}}
+
+        {:error, exception, response,
+         {acc, _error_body, metadata, _start_time, time_to_first_chunk}} ->
           result = {:error, exception, response, acc}
-          {result, %{}, {:stream_error, exception, metadata}}
+
+          {result, stream_measurements(time_to_first_chunk), {:stream_error, exception, metadata}}
       end
     end)
+  end
+
+  defp record_time_to_first_chunk(nil, elapsed), do: elapsed
+  defp record_time_to_first_chunk(time_to_first_chunk, _elapsed), do: time_to_first_chunk
+
+  defp stream_measurements(nil), do: %{}
+
+  defp stream_measurements(time_to_first_chunk) do
+    %{"gen_ai.client.operation.time_to_first_chunk": time_to_first_chunk}
   end
 
   defp translate_request(%Provider{translator: translator}, request, opts) do

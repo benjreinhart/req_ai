@@ -117,7 +117,11 @@ defmodule ReqAITest do
                         "gen_ai.provider.name": "openai"
                       }}
 
-      assert_receive {:telemetry, [:req_ai, :stream, :stop], %{duration: duration},
+      assert_receive {:telemetry, [:req_ai, :stream, :stop],
+                      %{
+                        duration: duration,
+                        "gen_ai.client.operation.time_to_first_chunk": time_to_first_chunk
+                      },
                       %{
                         "http.response.status_code": 200,
                         "gen_ai.request.stream": true,
@@ -128,6 +132,51 @@ defmodule ReqAITest do
                       }}
 
       assert duration >= 0
+      assert time_to_first_chunk >= 0
+      assert time_to_first_chunk <= duration
+    end
+
+    test "does not record time to first chunk when the response stream is empty" do
+      attach_stream_telemetry()
+
+      provider =
+        ReqStubs.stub_provider_response_stream(OpenAI,
+          body: []
+        )
+
+      assert {:ok, %Req.Response{status: 200}, :initial} =
+               ReqAI.stream(provider, @request, :initial, fn _event, _response, _acc ->
+                 flunk("callback should not be invoked for an empty stream")
+               end)
+
+      assert_receive {:telemetry, [:req_ai, :stream, :stop], measurements, %{error: false}}
+
+      assert %{duration: duration} = measurements
+      refute Map.has_key?(measurements, :"gen_ai.client.operation.time_to_first_chunk")
+      assert duration >= 0
+    end
+
+    test "records time to first chunk for a protocol-only stream event" do
+      attach_stream_telemetry()
+
+      provider =
+        ReqStubs.stub_provider_response_stream(OpenAI,
+          body: [{:data, ~s(event: ping\ndata: not-json\n\n)}]
+        )
+
+      assert {:ok, %Req.Response{status: 200}, :initial} =
+               ReqAI.stream(provider, @request, :initial, fn _event, _response, _acc ->
+                 flunk("callback should not be invoked for a protocol-only event")
+               end)
+
+      assert_receive {:telemetry, [:req_ai, :stream, :stop],
+                      %{
+                        duration: duration,
+                        "gen_ai.client.operation.time_to_first_chunk": time_to_first_chunk
+                      }, %{error: false}}
+
+      assert time_to_first_chunk >= 0
+      assert time_to_first_chunk <= duration
     end
 
     test "uses the configured telemetry event callback with decoded provider events" do
