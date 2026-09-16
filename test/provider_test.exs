@@ -141,6 +141,33 @@ defmodule ReqAI.ProviderTest do
     end)
   end
 
+  test "built-in providers extract non-streaming usage when available" do
+    providers = [
+      {ReqAI.Provider.Anthropic, "input_tokens", "output_tokens"},
+      {ReqAI.Provider.OpenAI, "input_tokens", "output_tokens"},
+      {ReqAI.Provider.XAI, "input_tokens", "output_tokens"},
+      {ReqAI.Provider.Gemini, "total_input_tokens", "total_output_tokens"},
+      {ReqAI.Provider.OpenRouter, "prompt_tokens", "completion_tokens"}
+    ]
+
+    for {provider, input_key, output_key} <- providers,
+        {usage, expected} <- [
+          {%{input_key => 12, output_key => 8}, %{input_tokens: 12, output_tokens: 8}},
+          {%{input_key => 0}, %{input_tokens: 0}},
+          {%{output_key => 0}, %{output_tokens: 0}},
+          {%{input_key => nil, output_key => nil}, %{}},
+          {%{}, %{}},
+          {nil, %{}}
+        ] do
+      body = %{"model" => "response-model", "usage" => usage}
+      response = Req.Response.new(status: 200, body: body)
+      metadata = %{feature: :summarizer}
+
+      assert provider.response_metadata(metadata, response, stream: false) ==
+               Map.merge(expected, %{feature: :summarizer, response_model: "response-model"})
+    end
+  end
+
   test "built-in providers fold telemetry from decoded stream events" do
     response = Req.Response.new(status: 200)
 

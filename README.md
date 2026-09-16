@@ -92,6 +92,8 @@ uses simple atom keys independent of OpenTelemetry semantic conventions:
 `:operation`, `:provider`, `:model`, `:response_model`, `:finish_reasons`,
 `:input_tokens`, and `:output_tokens`. Provider attributes are included when
 available; extraction coverage varies by provider and request mode. Streaming
+and non-streaming responses both report `:input_tokens` and `:output_tokens`
+when the provider supplies usage. Streaming
 requests also include `stream: true`. Stop metadata includes `:status_code` when
 an HTTP response is available, `:error`, and `:error_type` on errors.
 

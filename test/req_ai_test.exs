@@ -406,7 +406,11 @@ defmodule ReqAITest do
 
       provider =
         ReqStubs.stub_provider_response_json(OpenAI,
-          body: %{"model" => "gpt-5.4-2026-08-01", "status" => "completed"}
+          body: %{
+            "model" => "gpt-5.4-2026-08-01",
+            "status" => "completed",
+            "usage" => %{"input_tokens" => 12, "output_tokens" => 8}
+          }
         )
 
       assert {:ok, _response, _result} = ReqAI.generate(provider, @request)
@@ -430,6 +434,8 @@ defmodule ReqAITest do
                         provider: "openai",
                         model: "gpt-5.4",
                         response_model: "gpt-5.4-2026-08-01",
+                        input_tokens: 12,
+                        output_tokens: 8,
                         error: false
                       }}
 
