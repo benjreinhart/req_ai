@@ -112,26 +112,26 @@ defmodule ReqAI.ProviderTest do
 
     Enum.each(providers, fn {provider, provider_name, operation_name} ->
       assert provider.request_metadata(
-               %{feature: :summarizer, "gen_ai.request.stream": true},
+               %{feature: :summarizer, stream: true},
                %{model: "request-model"},
                stream: false
              ) == %{
-               "gen_ai.operation.name": operation_name,
-               "gen_ai.provider.name": provider_name,
-               "gen_ai.request.model": "request-model",
-               "gen_ai.request.stream": true,
+               operation: operation_name,
+               provider: provider_name,
+               model: "request-model",
+               stream: true,
                feature: :summarizer
              }
 
       assert provider.request_metadata(%{}, %{}, stream: true) == %{
-               "gen_ai.operation.name": operation_name,
-               "gen_ai.provider.name": provider_name
+               operation: operation_name,
+               provider: provider_name
              }
 
       response = Req.Response.new(status: 200, body: %{"model" => "response-model"})
 
       assert provider.response_metadata(%{feature: :summarizer}, response, []) == %{
-               "gen_ai.response.model": "response-model",
+               response_model: "response-model",
                feature: :summarizer
              }
 
@@ -172,10 +172,10 @@ defmodule ReqAI.ProviderTest do
              response,
              []
            ) == %{
-             "gen_ai.response.finish_reasons": ["end_turn"],
-             "gen_ai.response.model": "claude-sonnet-4-5",
-             "gen_ai.usage.input_tokens": 25,
-             "gen_ai.usage.output_tokens": 15,
+             finish_reasons: ["end_turn"],
+             response_model: "claude-sonnet-4-5",
+             input_tokens: 25,
+             output_tokens: 15,
              feature: :summarizer
            }
 
@@ -191,9 +191,9 @@ defmodule ReqAI.ProviderTest do
 
     for provider <- [ReqAI.Provider.OpenAI, ReqAI.Provider.XAI] do
       assert provider.event_metadata(%{}, responses_event, response, []) == %{
-               "gen_ai.response.model": "response-model",
-               "gen_ai.usage.input_tokens": 12,
-               "gen_ai.usage.output_tokens": 8
+               response_model: "response-model",
+               input_tokens: 12,
+               output_tokens: 8
              }
     end
 
@@ -208,9 +208,9 @@ defmodule ReqAI.ProviderTest do
     }
 
     assert ReqAI.Provider.Gemini.event_metadata(%{}, gemini_event, response, []) == %{
-             "gen_ai.response.model": "gemini-3-pro",
-             "gen_ai.usage.input_tokens": 19,
-             "gen_ai.usage.output_tokens": 7
+             response_model: "gemini-3-pro",
+             input_tokens: 19,
+             output_tokens: 7
            }
 
     open_router_event = %{
@@ -227,10 +227,10 @@ defmodule ReqAI.ProviderTest do
              response,
              []
            ) == %{
-             "gen_ai.response.finish_reasons": ["stop"],
-             "gen_ai.response.model": "openai/gpt-5",
-             "gen_ai.usage.input_tokens": 10,
-             "gen_ai.usage.output_tokens": 4
+             finish_reasons: ["stop"],
+             response_model: "openai/gpt-5",
+             input_tokens: 10,
+             output_tokens: 4
            }
   end
 

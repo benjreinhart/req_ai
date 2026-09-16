@@ -29,14 +29,14 @@ defmodule ReqAI.Provider.Anthropic do
   @impl true
   def request_metadata(metadata, request, _opts) do
     metadata
-    |> put_attr(:"gen_ai.operation.name", "chat")
-    |> put_attr(:"gen_ai.provider.name", "anthropic")
-    |> put_attr(:"gen_ai.request.model", fetch_attr(request, :model))
+    |> put_attr(:operation, "chat")
+    |> put_attr(:provider, "anthropic")
+    |> put_attr(:model, fetch_attr(request, :model))
   end
 
   @impl true
   def response_metadata(metadata, %Req.Response{body: body}, _opts) do
-    put_attr(metadata, :"gen_ai.response.model", fetch_attr(body, :model))
+    put_attr(metadata, :response_model, fetch_attr(body, :model))
   end
 
   @impl true
@@ -44,8 +44,8 @@ defmodule ReqAI.Provider.Anthropic do
     case message do
       %{"model" => model, "usage" => %{"input_tokens" => input_tokens}} ->
         metadata
-        |> put_attr(:"gen_ai.response.model", model)
-        |> put_attr(:"gen_ai.usage.input_tokens", input_tokens)
+        |> put_attr(:response_model, model)
+        |> put_attr(:input_tokens, input_tokens)
 
       _ ->
         metadata
@@ -60,8 +60,8 @@ defmodule ReqAI.Provider.Anthropic do
         "usage" => %{"output_tokens" => output_tokens}
       } ->
         metadata
-        |> put_attr(:"gen_ai.response.finish_reasons", stop_reason && [stop_reason])
-        |> put_attr(:"gen_ai.usage.output_tokens", output_tokens)
+        |> put_attr(:finish_reasons, stop_reason && [stop_reason])
+        |> put_attr(:output_tokens, output_tokens)
 
       _ ->
         metadata

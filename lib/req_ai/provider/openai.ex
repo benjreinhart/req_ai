@@ -25,14 +25,14 @@ defmodule ReqAI.Provider.OpenAI do
   @impl true
   def request_metadata(metadata, request, _opts) do
     metadata
-    |> put_attr(:"gen_ai.operation.name", "chat")
-    |> put_attr(:"gen_ai.provider.name", "openai")
-    |> put_attr(:"gen_ai.request.model", fetch_attr(request, :model))
+    |> put_attr(:operation, "chat")
+    |> put_attr(:provider, "openai")
+    |> put_attr(:model, fetch_attr(request, :model))
   end
 
   @impl true
   def response_metadata(metadata, %Req.Response{body: body}, _opts) do
-    put_attr(metadata, :"gen_ai.response.model", fetch_attr(body, :model))
+    put_attr(metadata, :response_model, fetch_attr(body, :model))
   end
 
   @impl true
@@ -40,7 +40,7 @@ defmodule ReqAI.Provider.OpenAI do
     metadata =
       case response do
         %{"model" => model} ->
-          put_attr(metadata, :"gen_ai.response.model", model)
+          put_attr(metadata, :response_model, model)
 
         _ ->
           metadata
@@ -49,8 +49,8 @@ defmodule ReqAI.Provider.OpenAI do
     case response do
       %{"usage" => %{"input_tokens" => input_tokens, "output_tokens" => output_tokens}} ->
         metadata
-        |> put_attr(:"gen_ai.usage.input_tokens", input_tokens)
-        |> put_attr(:"gen_ai.usage.output_tokens", output_tokens)
+        |> put_attr(:input_tokens, input_tokens)
+        |> put_attr(:output_tokens, output_tokens)
 
       _ ->
         metadata

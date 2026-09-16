@@ -112,22 +112,22 @@ defmodule ReqAITest do
 
       assert_receive {:telemetry, [:req_ai, :stream, :start], _measurements,
                       %{
-                        "gen_ai.request.stream": true,
-                        "gen_ai.request.model": "gpt-5.4",
-                        "gen_ai.provider.name": "openai"
+                        stream: true,
+                        model: "gpt-5.4",
+                        provider: "openai"
                       }}
 
       assert_receive {:telemetry, [:req_ai, :stream, :stop],
                       %{
                         duration: duration,
-                        "gen_ai.client.operation.time_to_first_chunk": time_to_first_chunk
+                        time_to_first_chunk: time_to_first_chunk
                       },
                       %{
-                        "http.response.status_code": 200,
-                        "gen_ai.request.stream": true,
-                        "gen_ai.response.model": "gpt-5.4-2026-08-01",
-                        "gen_ai.usage.input_tokens": 11,
-                        "gen_ai.usage.output_tokens": 4,
+                        status_code: 200,
+                        stream: true,
+                        response_model: "gpt-5.4-2026-08-01",
+                        input_tokens: 11,
+                        output_tokens: 4,
                         error: false
                       }}
 
@@ -152,7 +152,7 @@ defmodule ReqAITest do
       assert_receive {:telemetry, [:req_ai, :stream, :stop], measurements, %{error: false}}
 
       assert %{duration: duration} = measurements
-      refute Map.has_key?(measurements, :"gen_ai.client.operation.time_to_first_chunk")
+      refute Map.has_key?(measurements, :time_to_first_chunk)
       assert duration >= 0
     end
 
@@ -172,7 +172,7 @@ defmodule ReqAITest do
       assert_receive {:telemetry, [:req_ai, :stream, :stop],
                       %{
                         duration: duration,
-                        "gen_ai.client.operation.time_to_first_chunk": time_to_first_chunk
+                        time_to_first_chunk: time_to_first_chunk
                       }, %{error: false}}
 
       assert time_to_first_chunk >= 0
@@ -201,7 +201,7 @@ defmodule ReqAITest do
                       %{
                         custom_request: "gpt-5.4",
                         feature: :summarizer,
-                        "gen_ai.request.stream": true
+                        stream: true
                       }, %{data: %{"type" => "response.completed"}}, 200, true}
 
       assert_receive {:telemetry, [:req_ai, :stream, :stop], _measurements,
@@ -414,9 +414,9 @@ defmodule ReqAITest do
       assert_receive {:telemetry, [:req_ai, :generate, :start],
                       %{monotonic_time: monotonic_time, system_time: system_time},
                       %{
-                        "gen_ai.operation.name": "chat",
-                        "gen_ai.provider.name": "openai",
-                        "gen_ai.request.model": "gpt-5.4"
+                        operation: "chat",
+                        provider: "openai",
+                        model: "gpt-5.4"
                       }}
 
       assert is_integer(monotonic_time)
@@ -425,11 +425,11 @@ defmodule ReqAITest do
       assert_receive {:telemetry, [:req_ai, :generate, :stop],
                       %{duration: duration, monotonic_time: monotonic_time},
                       %{
-                        "http.response.status_code": 200,
-                        "gen_ai.operation.name": "chat",
-                        "gen_ai.provider.name": "openai",
-                        "gen_ai.request.model": "gpt-5.4",
-                        "gen_ai.response.model": "gpt-5.4-2026-08-01",
+                        status_code: 200,
+                        operation: "chat",
+                        provider: "openai",
+                        model: "gpt-5.4",
+                        response_model: "gpt-5.4-2026-08-01",
                         error: false
                       }}
 
@@ -454,13 +454,13 @@ defmodule ReqAITest do
       assert_receive {:telemetry, [:req_ai, :generate, :start], _measurements,
                       %{custom_request: "gpt-5.4", feature: :summarizer} = metadata}
 
-      refute Map.has_key?(metadata, :"gen_ai.provider.name")
+      refute Map.has_key?(metadata, :provider)
 
       assert_receive {:extract_response_telemetry,
                       %{
                         custom_request: "gpt-5.4",
                         feature: :summarizer,
-                        "http.response.status_code": 200,
+                        status_code: 200,
                         error: false
                       }, %{"model" => "gpt-5.4-2026-08-01", "status" => "completed"}, false}
 
@@ -486,7 +486,7 @@ defmodule ReqAITest do
       assert_receive {:telemetry, [:req_ai, :generate, :stop], _measurements,
                       %{
                         request_only: true,
-                        "http.response.status_code": 200,
+                        status_code: 200,
                         error: false
                       }}
     end
@@ -507,7 +507,7 @@ defmodule ReqAITest do
 
       assert_receive {:telemetry, [:req_ai, :generate, :stop], _measurements,
                       %{
-                        "http.response.status_code": 200,
+                        status_code: 200,
                         error: false,
                         feature: :summarizer
                       }}
@@ -539,10 +539,10 @@ defmodule ReqAITest do
 
       assert_receive {:telemetry, [:req_ai, :generate, :stop], %{duration: duration},
                       %{
-                        "error.type": "429",
-                        "http.response.status_code": 429,
-                        "gen_ai.provider.name": "openai",
-                        "gen_ai.request.model": "gpt-5.4",
+                        error_type: "429",
+                        status_code: 429,
+                        provider: "openai",
+                        model: "gpt-5.4",
                         error: true
                       }}
 
@@ -565,13 +565,13 @@ defmodule ReqAITest do
       assert_receive {:telemetry, [:req_ai, :generate, :stop], %{duration: duration},
                       %{
                         custom_request: "gpt-5.4",
-                        "error.type": "timeout",
+                        error_type: "timeout",
                         feature: :summarizer,
                         error: true
                       } = metadata}
 
-      refute Map.has_key?(metadata, :"gen_ai.response.model")
-      refute Map.has_key?(metadata, :"http.response.status_code")
+      refute Map.has_key?(metadata, :response_model)
+      refute Map.has_key?(metadata, :status_code)
       assert duration >= 0
     end
 
@@ -595,8 +595,8 @@ defmodule ReqAITest do
       assert_receive {:telemetry, [:req_ai, :generate, :exception],
                       %{duration: duration, monotonic_time: monotonic_time},
                       %{
-                        "gen_ai.provider.name": "openai",
-                        "gen_ai.request.model": "gpt-5.4",
+                        provider: "openai",
+                        model: "gpt-5.4",
                         feature: :summarizer,
                         kind: :error,
                         reason: %RuntimeError{message: "response translation failed"},
@@ -759,7 +759,7 @@ defmodule ReqAITest do
                       custom_measurement: 42,
                       duration: duration,
                       monotonic_time: monotonic_time
-                    }, %{"http.response.status_code": 200, error: false}}
+                    }, %{status_code: 200, error: false}}
 
     assert duration >= 0
     assert is_integer(monotonic_time)

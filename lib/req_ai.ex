@@ -139,7 +139,7 @@ defmodule ReqAI do
   defp stream_measurements(nil), do: %{}
 
   defp stream_measurements(time_to_first_chunk) do
-    %{"gen_ai.client.operation.time_to_first_chunk": time_to_first_chunk}
+    %{time_to_first_chunk: time_to_first_chunk}
   end
 
   defp translate_request(%Provider{translator: translator}, request, opts) do

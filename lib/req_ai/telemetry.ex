@@ -1,5 +1,20 @@
 defmodule ReqAI.Telemetry do
-  @moduledoc "Optional attribute extraction callbacks for telemetry events."
+  @moduledoc """
+  Optional attribute extraction callbacks for telemetry events.
+
+  Built-in extractors use simple atom keys: `:operation`, `:provider`, `:model`,
+  `:response_model`, `:finish_reasons`, `:input_tokens`, and `:output_tokens`.
+  Attributes are included when available from the provider's response or stream
+  events; extraction coverage varies by provider and request mode.
+
+  The emission layer adds `:stream` (only for streaming requests), `:status_code`
+  when an HTTP response is available, `:error`, and `:error_type` on errors.
+  Streaming stop events also include a `:time_to_first_chunk` measurement when
+  a chunk was received, in native time units like `:duration`.
+
+  These names are independent of OpenTelemetry semantic conventions. Applications
+  can map them to those conventions in their telemetry handlers.
+  """
 
   alias ReqAI.Provider
 
@@ -58,13 +73,12 @@ defmodule ReqAI.Telemetry do
   end
 
   defp start_metadata(telemetry, metadata, request, opts) do
-    # From the otel genai semconv spec:
-    # gen_ai.request.stream: If and only if the request is streaming. If unset, the request is assumed to be non-streaming.
+    # Include the stream flag only for streaming requests.
     metadata =
       if opts[:stream] do
-        Map.put(metadata, :"gen_ai.request.stream", true)
+        Map.put(metadata, :stream, true)
       else
-        Map.delete(metadata, :"gen_ai.request.stream")
+        Map.delete(metadata, :stream)
       end
 
     extract_metadata(telemetry, :request_metadata, [metadata, request, opts], metadata)
@@ -73,7 +87,7 @@ defmodule ReqAI.Telemetry do
   defp stop_metadata(telemetry, metadata, {:response, response, error?}, opts) do
     metadata =
       metadata
-      |> Map.put(:"http.response.status_code", response.status)
+      |> Map.put(:status_code, response.status)
       |> Map.put(:error, error?)
       |> maybe_put_error_type(response.status, error?)
 
@@ -82,7 +96,7 @@ defmodule ReqAI.Telemetry do
 
   defp stop_metadata(_telemetry, _metadata, {:stream, response, error?, metadata}, _opts) do
     metadata
-    |> Map.put(:"http.response.status_code", response.status)
+    |> Map.put(:status_code, response.status)
     |> Map.put(:error, error?)
     |> maybe_put_error_type(response.status, error?)
   end
@@ -90,13 +104,13 @@ defmodule ReqAI.Telemetry do
   defp stop_metadata(_telemetry, metadata, {:error, exception}, _opts) do
     metadata
     |> Map.put(:error, true)
-    |> Map.put(:"error.type", error_type(exception))
+    |> Map.put(:error_type, error_type(exception))
   end
 
   defp stop_metadata(_telemetry, _metadata, {:stream_error, exception, metadata}, _opts) do
     metadata
     |> Map.put(:error, true)
-    |> Map.put(:"error.type", error_type(exception))
+    |> Map.put(:error_type, error_type(exception))
   end
 
   defp extract_metadata(telemetry, callback, args, metadata) do
@@ -123,7 +137,7 @@ defmodule ReqAI.Telemetry do
   end
 
   defp maybe_put_error_type(metadata, status, true) when is_integer(status) do
-    Map.put(metadata, :"error.type", Integer.to_string(status))
+    Map.put(metadata, :error_type, Integer.to_string(status))
   end
 
   defp maybe_put_error_type(metadata, _status, _error?), do: metadata

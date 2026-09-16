@@ -87,6 +87,18 @@ ReqAI.Provider.new(ReqAI.Provider.OpenAI,
 
 Applications can attach handlers with `:telemetry` without replacing the emission layer.
 
+`stream/4` emits the same lifecycle events under `[:req_ai, :stream]`. Metadata
+uses simple atom keys independent of OpenTelemetry semantic conventions:
+`:operation`, `:provider`, `:model`, `:response_model`, `:finish_reasons`,
+`:input_tokens`, and `:output_tokens`. Provider attributes are included when
+available; extraction coverage varies by provider and request mode. Streaming
+requests also include `stream: true`. Stop metadata includes `:status_code` when
+an HTTP response is available, `:error`, and `:error_type` on errors.
+
+Streaming stop measurements include `:time_to_first_chunk` when a chunk was
+received, in native time units like `:duration`. Applications integrating with
+OpenTelemetry can map these keys to its semantic conventions in their handlers.
+
 ## Installation
 
 If [available in Hex](https://hex.pm/docs/publish), the package can be installed
