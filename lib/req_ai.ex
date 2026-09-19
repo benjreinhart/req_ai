@@ -27,7 +27,6 @@ defmodule ReqAI do
     opts = Keyword.put(opts, :stream, false)
     request = translate_request(provider, request, opts)
     req = module.build(req, request, opts)
-    http_metadata_opts = [stream: false, telemetry: provider.telemetry]
 
     Telemetry.span(
       provider.telemetry,
@@ -38,17 +37,17 @@ defmodule ReqAI do
       fn metadata ->
         case Req.request(req) do
           {:ok, %Req.Response{status: status} = response} when status in 200..299 ->
-            metadata = put_http_metadata(metadata, response, http_metadata_opts)
+            metadata = put_http_metadata(metadata, response, telemetry: provider.telemetry)
             result = {:ok, response, translate_response(provider, response, opts)}
             {result, %{}, {:ok, response, metadata}}
 
           {:ok, response} ->
-            metadata = put_http_metadata(metadata, response, http_metadata_opts)
+            metadata = put_http_metadata(metadata, response, telemetry: provider.telemetry)
             result = {:error, response, translate_error(provider, response, opts)}
             {result, %{}, {:ok, response, metadata}}
 
           {:error, exception} = error ->
-            metadata = put_http_metadata(metadata, exception, http_metadata_opts)
+            metadata = put_http_metadata(metadata, exception, telemetry: provider.telemetry)
             {error, %{}, {:error, exception, metadata}}
         end
       end
@@ -98,7 +97,6 @@ defmodule ReqAI do
     opts = Keyword.put(provider.opts, :stream, true)
     request = translate_request(provider, request, opts)
     req = provider.module.build(provider.req, request, opts)
-    http_metadata_opts = [stream: true, telemetry: provider.telemetry]
 
     wrapped_fun =
       fn
@@ -134,12 +132,12 @@ defmodule ReqAI do
         case Req.stream(req, {acc, [], metadata, start_time, nil}, wrapped_fun) do
           {:ok, %Req.Response{} = response, {acc, _, metadata, _start_time, time_to_first_chunk}}
           when response.status in 200..299 ->
-            metadata = put_http_metadata(metadata, response, http_metadata_opts)
+            metadata = put_http_metadata(metadata, response, telemetry: provider.telemetry)
             measurements = stream_measurements(time_to_first_chunk)
             {{:ok, response, acc}, measurements, {:ok, response, metadata}}
 
           {:ok, response, {_acc, error_body, metadata, _start_time, time_to_first_chunk}} ->
-            metadata = put_http_metadata(metadata, response, http_metadata_opts)
+            metadata = put_http_metadata(metadata, response, telemetry: provider.telemetry)
             measurements = stream_measurements(time_to_first_chunk)
             response = put_error_body(response, error_body)
             result = {:error, response, translate_error(provider, response, opts)}
@@ -147,7 +145,7 @@ defmodule ReqAI do
 
           {:error, exception, response,
            {acc, _error_body, metadata, _start_time, time_to_first_chunk}} ->
-            metadata = put_http_metadata(metadata, exception, http_metadata_opts)
+            metadata = put_http_metadata(metadata, exception, telemetry: provider.telemetry)
             measurements = stream_measurements(time_to_first_chunk)
             {{:error, exception, response, acc}, measurements, {:error, exception, metadata}}
         end
@@ -214,13 +212,8 @@ defmodule ReqAI do
     end
   end
 
-  defp put_http_metadata(metadata, response, opts) do
-    if opts[:telemetry] == false do
-      metadata
-    else
-      put_http_metadata(metadata, response)
-    end
-  end
+  defp put_http_metadata(metadata, _, telemetry: false), do: metadata
+  defp put_http_metadata(metadata, response, _), do: put_http_metadata(metadata, response)
 
   defp put_http_metadata(metadata, %Req.Response{status: status}) when status in 200..299 do
     metadata
