@@ -1,6 +1,8 @@
 defmodule ReqAI do
   alias ReqAI.{Provider, Telemetry}
 
+  import ReqAI.Utils, only: [ensure_loaded!: 1, maybe_apply: 4]
+
   @doc """
   Generates a response.
 
@@ -163,19 +165,21 @@ defmodule ReqAI do
   end
 
   defp translate_request(%Provider{translator: translator}, request, opts) do
-    translate(translator, :request, [request, opts], request)
+    translator
+    |> ensure_loaded!()
+    |> maybe_apply(:request, [request, opts], request)
   end
 
   defp translate_response(%Provider{translator: translator}, response, opts) do
-    translate(translator, :response, [response, opts], response.body)
+    maybe_apply(translator, :response, [response, opts], response.body)
   end
 
   defp translate_error(%Provider{translator: translator}, response, opts) do
-    translate(translator, :error, [response, opts], response.body)
+    maybe_apply(translator, :error, [response, opts], response.body)
   end
 
   defp translate_event(%Provider{translator: translator}, event, response, opts) do
-    translate(translator, :event, [event, response, opts], event)
+    maybe_apply(translator, :event, [event, response, opts], event)
   end
 
   defp consume_events(_provider, [], _response, _opts, _fun, acc, metadata) do
@@ -197,23 +201,6 @@ defmodule ReqAI do
 
       other ->
         raise ArgumentError, "expected {:cont, acc} or {:halt, acc}, got: #{inspect(other)}"
-    end
-  end
-
-  defp translate(nil, _callback, _args, value), do: value
-
-  defp translate(translator, callback, args, value) do
-    case Code.ensure_loaded(translator) do
-      {:module, ^translator} ->
-        if function_exported?(translator, callback, length(args)) do
-          apply(translator, callback, args)
-        else
-          value
-        end
-
-      {:error, reason} ->
-        raise ArgumentError,
-              "could not load translator #{inspect(translator)}: #{inspect(reason)}"
     end
   end
 

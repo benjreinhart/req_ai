@@ -3,6 +3,8 @@ defmodule ReqAI.Telemetry do
   Attribute extraction callbacks for telemetry events.
   """
 
+  import ReqAI.Utils, only: [ensure_loaded!: 1, maybe_apply: 4]
+
   @callback request_metadata(
               metadata :: map(),
               request :: map() | keyword(),
@@ -31,7 +33,7 @@ defmodule ReqAI.Telemetry do
   end
 
   def span(telemetry, initial_metadata, event_prefix, request, opts, fun) do
-    telemetry = Code.ensure_loaded!(telemetry)
+    telemetry = ensure_loaded!(telemetry)
     streaming? = Keyword.fetch!(opts, :stream)
     metadata = start_metadata(telemetry, initial_metadata, request, opts)
 
@@ -60,22 +62,14 @@ defmodule ReqAI.Telemetry do
   end
 
   def event_metadata(telemetry, metadata, event, response, opts) do
-    extract_metadata(telemetry, :event_metadata, [metadata, event, response, opts])
+    maybe_apply(telemetry, :event_metadata, [metadata, event, response, opts], metadata)
   end
 
   defp start_metadata(telemetry, metadata, req_response, opts) do
-    extract_metadata(telemetry, :request_metadata, [metadata, req_response, opts])
+    maybe_apply(telemetry, :request_metadata, [metadata, req_response, opts], metadata)
   end
 
   defp stop_metadata(telemetry, metadata, req_response, opts) do
-    extract_metadata(telemetry, :response_metadata, [metadata, req_response, opts])
-  end
-
-  defp extract_metadata(telemetry, callback, [metadata | _] = args) do
-    if function_exported?(telemetry, callback, length(args)) do
-      apply(telemetry, callback, args)
-    else
-      metadata
-    end
+    maybe_apply(telemetry, :response_metadata, [metadata, req_response, opts], metadata)
   end
 end
