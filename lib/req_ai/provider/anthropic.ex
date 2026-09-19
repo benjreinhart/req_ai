@@ -36,12 +36,10 @@ defmodule ReqAI.Provider.Anthropic do
 
   @impl true
   def response_metadata(metadata, %Req.Response{body: body}, _opts) do
-    usage = fetch_attr(body, :usage) || %{}
-
     metadata
-    |> put_attr(:response_model, fetch_attr(body, :model))
-    |> put_attr(:input_tokens, fetch_attr(usage, :input_tokens))
-    |> put_attr(:output_tokens, fetch_attr(usage, :output_tokens))
+    |> put_attr(:response_model, Map.get(body, "model"))
+    |> put_attr(:input_tokens, get_in(body, ["usage", "input_tokens"]))
+    |> put_attr(:output_tokens, get_in(body, ["usage", "output_tokens"]))
   end
 
   @impl true
