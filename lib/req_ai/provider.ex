@@ -53,6 +53,11 @@ defmodule ReqAI.Provider do
   provider and passed to `build/3` and the configured translator callbacks for
   each request.
 
+  Built-in adapters take body parameters, including `:model`, from the request
+  passed to `ReqAI.generate/2` or `ReqAI.stream/4`. They do not merge provider
+  options into that body. Configure authentication through `:req`, using Req's
+  `:auth` or `:headers` options as appropriate for the provider.
+
   The optional `:translator` must implement the `ReqAI.Translator` behaviour.
 
   The `:telemetry` option selects a module implementing any of the optional

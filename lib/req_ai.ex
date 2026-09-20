@@ -1,4 +1,15 @@
 defmodule ReqAI do
+  @moduledoc """
+  A lightweight Elixir client for LLM APIs, built on Req.
+
+  Provides consistent generation, streaming, and telemetry with provider-native
+  requests and responses. Configure an adapter with `ReqAI.Provider.new/2`, then
+  call `generate/2` or `stream/4` with a provider-native request body.
+
+  Optional `ReqAI.Translator` callbacks let applications define their own shared
+  representations while retaining access to the full `Req.Response`.
+  """
+
   alias ReqAI.{Provider, Telemetry}
 
   import ReqAI.Utils, only: [ensure_loaded!: 1, maybe_apply: 4]
@@ -72,7 +83,7 @@ defmodule ReqAI do
   receives its return value. The accompanying response remains the in-progress
   `Req.Response`.
 
-  The completed response remains the raw `Req.Response`. For a successful
+  The completed `Req.Response` remains available. For a successful
   stream, the accumulator is the application-owned result of consuming the
   translated events. For a non-successful stream, the third element is produced
   by `ReqAI.Translator.error/2`, defaulting to the buffered response body.

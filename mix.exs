@@ -31,7 +31,7 @@ defmodule ReqAI.MixProject do
 
   defp package do
     [
-      description: "Req-powered, lightweight runtime for provider-native LLM APIs.",
+      description: "Req-based LLM client with streaming, telemetry, and provider-native data.",
       links: %{"GitHub" => "https://github.com/benjreinhart/req_ai"}
     ]
   end

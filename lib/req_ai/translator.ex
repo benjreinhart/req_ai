@@ -10,6 +10,16 @@ defmodule ReqAI.Translator do
   Translators let applications own shared request, response, and event
   representations without requiring ReqAI or its provider adapters to define a
   universal representation.
+
+  Configure a translator with
+  `ReqAI.Provider.new(adapter, translator: MyApp.Translator)`. Each callback is
+  optional and receives the configured provider options, including the final
+  `:stream` value selected by `ReqAI.generate/2` or `ReqAI.stream/4`.
+
+  `request/2` must return a provider-native map or keyword list. For completed
+  HTTP requests, the full `Req.Response` remains the second tuple element and
+  the application value is the third. Successful streams use the caller's
+  accumulator as that value; `response/2` is not invoked for streams.
   """
 
   @doc """
