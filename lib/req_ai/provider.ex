@@ -57,7 +57,7 @@ defmodule ReqAI.Provider do
   accepts a map that is passed to the telemetry callbacks.
   """
   @spec new(module :: module(), opts :: keyword()) :: t()
-  def new(module, opts) do
+  def new(module, opts \\ []) do
     {req_opts, opts} = Keyword.pop(opts, :req, [])
     {translator, opts} = Keyword.pop(opts, :translator, nil)
     {telemetry, opts} = Keyword.pop(opts, :telemetry, module)

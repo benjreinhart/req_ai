@@ -86,7 +86,7 @@ defmodule ReqAI.TelemetryTest do
     test "emits start and stop when successful" do
       ref = :telemetry_test.attach_event_handlers(self(), @events)
 
-      provider = Provider.new(ReqAI.Provider.OpenAI, [])
+      provider = Provider.new(ReqAI.Provider.OpenAI)
 
       Telemetry.span(
         provider.telemetry,
@@ -132,7 +132,7 @@ defmodule ReqAI.TelemetryTest do
     test "emits start and stop when unsuccessful" do
       ref = :telemetry_test.attach_event_handlers(self(), @events)
 
-      provider = Provider.new(ReqAI.Provider.OpenAI, [])
+      provider = Provider.new(ReqAI.Provider.OpenAI)
 
       Telemetry.span(
         provider.telemetry,
@@ -175,7 +175,7 @@ defmodule ReqAI.TelemetryTest do
     test "emits start and stop when exceptional" do
       ref = :telemetry_test.attach_event_handlers(self(), @events)
 
-      provider = Provider.new(ReqAI.Provider.OpenAI, [])
+      provider = Provider.new(ReqAI.Provider.OpenAI)
 
       Telemetry.span(
         provider.telemetry,
