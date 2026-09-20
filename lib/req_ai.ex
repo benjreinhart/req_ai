@@ -57,6 +57,9 @@ defmodule ReqAI do
   @doc """
   Streams a response into an accumulator.
 
+  Raises `ArgumentError` if the provider does not implement
+  `ReqAI.Provider.decode_event/3`.
+
   The provider builds the request with streaming enabled. `fun` receives each
   provider-native event, the response as it is being received, and the current
   accumulator. It must return `{:cont, acc}` to continue or `{:halt, acc}` to
@@ -94,6 +97,13 @@ defmodule ReqAI do
         when acc: term()
 
   def stream(%Provider{} = provider, request, acc, fun) when is_function(fun, 3) do
+    module = ensure_loaded!(provider.module)
+
+    unless function_exported?(module, :decode_event, 3) do
+      raise ArgumentError,
+            "provider #{inspect(module)} does not support streaming: decode_event/3 is not implemented"
+    end
+
     opts = Keyword.put(provider.opts, :stream, true)
     request = translate_request(provider, request, opts)
     req = provider.module.build(provider.req, request, opts)

@@ -60,6 +60,16 @@ defmodule ReqAITest do
     def decode_event(event, _response, _opts), do: [{:first, event}, {:second, event}]
   end
 
+  defmodule NonStreamingProvider do
+    @behaviour ReqAI.Provider
+
+    @impl true
+    def build(req, request, opts) do
+      send(self(), :non_streaming_provider_build)
+      ReqAI.Provider.OpenAI.build(req, request, opts)
+    end
+  end
+
   defmodule CustomTelemetry do
     @behaviour ReqAI.Telemetry
 
@@ -92,6 +102,20 @@ defmodule ReqAITest do
   @request %{model: "gpt-5.4", input: "Say hello."}
 
   describe "stream/4" do
+    test "raises before building a request when the provider does not support streaming" do
+      provider = ReqAI.Provider.new(NonStreamingProvider)
+
+      assert_raise ArgumentError,
+                   "provider ReqAITest.NonStreamingProvider does not support streaming: decode_event/3 is not implemented",
+                   fn ->
+                     ReqAI.stream(provider, @request, [], fn _event, _response, acc ->
+                       {:cont, acc}
+                     end)
+                   end
+
+      refute_received :non_streaming_provider_build
+    end
+
     test "emits telemetry and folds every decoded event into the stop metadata" do
       attach_stream_telemetry()
 
@@ -401,6 +425,14 @@ defmodule ReqAITest do
   end
 
   describe "generate/2" do
+    test "supports a provider without a streaming callback" do
+      body = %{"status" => "completed"}
+      provider = ReqStubs.stub_provider_response_json(NonStreamingProvider, body: body)
+
+      assert {:ok, %Req.Response{status: 200}, ^body} = ReqAI.generate(provider, @request)
+      assert_received :non_streaming_provider_build
+    end
+
     test "emits telemetry for a successful response" do
       attach_generate_telemetry()
 
