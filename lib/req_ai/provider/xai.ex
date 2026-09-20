@@ -34,12 +34,15 @@ defmodule ReqAI.Provider.XAI do
   def response_metadata(metadata, %Req.Response{body: body}, _opts) do
     metadata
     |> put_attr(:response_model, Map.get(body, "model"))
+    |> put_attr(:finish_reasons, finish_reasons(body))
     |> put_attr(:input_tokens, get_in(body, ["usage", "input_tokens"]))
     |> put_attr(:output_tokens, get_in(body, ["usage", "output_tokens"]))
   end
 
   @impl true
   def event_metadata(metadata, %{data: %{"response" => response}}, _, _) do
+    metadata = put_attr(metadata, :finish_reasons, finish_reasons(response))
+
     metadata =
       case response do
         %{"model" => model} ->
@@ -62,4 +65,9 @@ defmodule ReqAI.Provider.XAI do
 
   @impl true
   def event_metadata(metadata, _event, _response, _opts), do: metadata
+
+  defp finish_reasons(%{"status" => status}) when status in ["completed", "incomplete"],
+    do: [status]
+
+  defp finish_reasons(_body), do: nil
 end

@@ -168,6 +168,95 @@ defmodule ReqAI.ProviderTest do
     end
   end
 
+  test "finish reasons use each provider's API fields in responses and stream events" do
+    cases = [
+      {ReqAI.Provider.Anthropic, %{"stop_reason" => "end_turn"}, "end_turn"},
+      {ReqAI.Provider.OpenAI,
+       %{"status" => "incomplete", "incomplete_details" => %{"reason" => "max_output_tokens"}},
+       "max_output_tokens"},
+      {ReqAI.Provider.XAI, %{"status" => "completed"}, "completed"},
+      {ReqAI.Provider.Gemini, %{"status" => "completed"}, "completed"},
+      {ReqAI.Provider.OpenRouter,
+       %{"choices" => [%{"finish_reason" => "stop", "native_finish_reason" => "end_turn"}]},
+       "stop"}
+    ]
+
+    for {provider, body, reason} <- cases do
+      response = Req.Response.new(status: 200, body: body)
+      metadata = %{feature: :summarizer}
+      result = provider.response_metadata(metadata, response, [])
+      assert result.finish_reasons == [reason]
+      refute Map.has_key?(result, :finish_reason)
+      assert result.feature == :summarizer
+
+      result = provider.event_metadata(metadata, finish_event(provider, body), response, [])
+      assert result.finish_reasons == [reason]
+      refute Map.has_key?(result, :finish_reason)
+      assert result.feature == :summarizer
+
+      # A later event without a reason must preserve the accumulated value.
+      assert provider.event_metadata(result, finish_event(provider, %{}), response, []) == result
+    end
+  end
+
+  test "OpenRouter preserves all choice finish reasons in responses and streams" do
+    body = %{
+      "choices" => [
+        %{"finish_reason" => "stop"},
+        %{"finish_reason" => nil},
+        %{"finish_reason" => "length"},
+        %{"finish_reason" => "stop"}
+      ]
+    }
+
+    response = Req.Response.new(status: 200, body: body)
+    expected = %{finish_reasons: ["stop", "length", "stop"]}
+    assert ReqAI.Provider.OpenRouter.response_metadata(%{}, response, []) == expected
+    assert ReqAI.Provider.OpenRouter.event_metadata(%{}, %{data: body}, response, []) == expected
+  end
+
+  test "missing, null, and nonterminal fields do not introduce finish reasons" do
+    cases = [
+      {ReqAI.Provider.Anthropic, %{"stop_reason" => nil}},
+      {ReqAI.Provider.OpenAI, %{"status" => nil}},
+      {ReqAI.Provider.OpenAI, %{"status" => "queued"}},
+      {ReqAI.Provider.OpenAI, %{"status" => "in_progress"}},
+      {ReqAI.Provider.XAI, %{"status" => "in_progress"}},
+      {ReqAI.Provider.Gemini, %{"status" => "in_progress"}},
+      {ReqAI.Provider.OpenRouter, %{"choices" => []}},
+      {ReqAI.Provider.OpenRouter, %{"choices" => nil}},
+      {ReqAI.Provider.OpenRouter, %{"choices" => [%{"finish_reason" => nil}]}}
+    ]
+
+    for {provider, body} <- cases, metadata <- [%{}, %{finish_reasons: ["previous"]}] do
+      response = Req.Response.new(status: 200, body: body)
+      assert provider.response_metadata(metadata, response, []) == metadata
+
+      assert provider.event_metadata(metadata, finish_event(provider, body), response, []) ==
+               metadata
+    end
+  end
+
+  test "Gemini status updates report terminal statuses and preserve them on later events" do
+    response = Req.Response.new(status: 200)
+
+    for status <- ["completed", "requires_action", "failed", "cancelled", "incomplete"] do
+      event = %{data: %{"event_type" => "interaction.status_update", "status" => status}}
+      metadata = ReqAI.Provider.Gemini.event_metadata(%{}, event, response, [])
+      assert metadata == %{finish_reasons: [status]}
+
+      event = %{data: %{"event_type" => "interaction.status_update", "status" => "in_progress"}}
+      assert ReqAI.Provider.Gemini.event_metadata(metadata, event, response, []) == metadata
+    end
+  end
+
+  defp finish_event(ReqAI.Provider.Anthropic, body),
+    do: %{data: %{"type" => "message_delta", "delta" => body}}
+
+  defp finish_event(ReqAI.Provider.Gemini, body), do: %{data: %{"interaction" => body}}
+  defp finish_event(ReqAI.Provider.OpenRouter, body), do: %{data: body}
+  defp finish_event(_provider, body), do: %{data: %{"response" => body}}
+
   test "built-in providers fold telemetry from decoded stream events" do
     response = Req.Response.new(status: 200)
 

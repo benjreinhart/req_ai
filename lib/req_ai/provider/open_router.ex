@@ -34,6 +34,7 @@ defmodule ReqAI.Provider.OpenRouter do
   def response_metadata(metadata, %Req.Response{body: body}, _opts) do
     metadata
     |> put_attr(:response_model, Map.get(body, "model"))
+    |> put_attr(:finish_reasons, finish_reasons(body))
     |> put_attr(:input_tokens, get_in(body, ["usage", "prompt_tokens"]))
     |> put_attr(:output_tokens, get_in(body, ["usage", "completion_tokens"]))
   end
@@ -49,22 +50,7 @@ defmodule ReqAI.Provider.OpenRouter do
           metadata
       end
 
-    finish_reasons =
-      case data do
-        %{"choices" => choices} ->
-          for %{"finish_reason" => finish_reason} <- choices,
-              not is_nil(finish_reason),
-              do: finish_reason
-
-        _ ->
-          []
-      end
-
-    metadata =
-      case finish_reasons do
-        [] -> metadata
-        finish_reasons -> put_attr(metadata, :finish_reasons, finish_reasons)
-      end
+    metadata = put_attr(metadata, :finish_reasons, finish_reasons(data))
 
     case data do
       %{"usage" => %{"prompt_tokens" => input_tokens, "completion_tokens" => output_tokens}} ->
@@ -79,4 +65,11 @@ defmodule ReqAI.Provider.OpenRouter do
 
   @impl true
   def event_metadata(metadata, _event, _response, _opts), do: metadata
+
+  defp finish_reasons(%{"choices" => choices}) when is_list(choices) do
+    reasons = for %{"finish_reason" => reason} <- choices, not is_nil(reason), do: reason
+    if reasons != [], do: reasons
+  end
+
+  defp finish_reasons(_body), do: nil
 end

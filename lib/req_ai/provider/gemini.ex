@@ -34,12 +34,15 @@ defmodule ReqAI.Provider.Gemini do
   def response_metadata(metadata, %Req.Response{body: body}, _opts) do
     metadata
     |> put_attr(:response_model, Map.get(body, "model"))
+    |> put_attr(:finish_reasons, finish_reasons(body))
     |> put_attr(:input_tokens, get_in(body, ["usage", "total_input_tokens"]))
     |> put_attr(:output_tokens, get_in(body, ["usage", "total_output_tokens"]))
   end
 
   @impl true
   def event_metadata(metadata, %{data: %{"interaction" => interaction}}, _, _) do
+    metadata = put_attr(metadata, :finish_reasons, finish_reasons(interaction))
+
     metadata =
       case interaction do
         %{"model" => model} ->
@@ -66,5 +69,21 @@ defmodule ReqAI.Provider.Gemini do
   end
 
   @impl true
+  def event_metadata(
+        metadata,
+        %{data: %{"event_type" => "interaction.status_update"} = data},
+        _,
+        _
+      ) do
+    put_attr(metadata, :finish_reasons, finish_reasons(data))
+  end
+
+  @impl true
   def event_metadata(metadata, _event, _response, _opts), do: metadata
+
+  defp finish_reasons(%{"status" => status})
+       when status in ["completed", "requires_action", "failed", "cancelled", "incomplete"],
+       do: [status]
+
+  defp finish_reasons(_body), do: nil
 end

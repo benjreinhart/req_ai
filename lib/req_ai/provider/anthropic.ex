@@ -36,8 +36,11 @@ defmodule ReqAI.Provider.Anthropic do
 
   @impl true
   def response_metadata(metadata, %Req.Response{body: body}, _opts) do
+    stop_reason = Map.get(body, "stop_reason")
+
     metadata
     |> put_attr(:response_model, Map.get(body, "model"))
+    |> put_attr(:finish_reasons, stop_reason && [stop_reason])
     |> put_attr(:input_tokens, get_in(body, ["usage", "input_tokens"]))
     |> put_attr(:output_tokens, get_in(body, ["usage", "output_tokens"]))
   end
@@ -57,18 +60,11 @@ defmodule ReqAI.Provider.Anthropic do
 
   @impl true
   def event_metadata(metadata, %{data: %{"type" => "message_delta"} = data}, _, _) do
-    case data do
-      %{
-        "delta" => %{"stop_reason" => stop_reason},
-        "usage" => %{"output_tokens" => output_tokens}
-      } ->
-        metadata
-        |> put_attr(:finish_reasons, stop_reason && [stop_reason])
-        |> put_attr(:output_tokens, output_tokens)
+    stop_reason = get_in(data, ["delta", "stop_reason"])
 
-      _ ->
-        metadata
-    end
+    metadata
+    |> put_attr(:finish_reasons, stop_reason && [stop_reason])
+    |> put_attr(:output_tokens, get_in(data, ["usage", "output_tokens"]))
   end
 
   @impl true
