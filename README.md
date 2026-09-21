@@ -24,7 +24,7 @@ IO.puts(text)
 
 - Generate and stream with one calling convention across providers
 - Adapters for Anthropic, OpenAI, Gemini, xAI, and OpenRouter. BYO using the [Provider](lib/req_ai/provider.ex) behaviour
-- Telemetry for lifecycle, duration, token usage, time to first chunk, etc. BYO using the [Telemetry](lib/req_ai/provider.ex) behaviour
+- Telemetry for lifecycle, duration, token usage, time to first chunk, etc. BYO using the [Telemetry](lib/req_ai/telemetry.ex) behaviour
 - Full control of the underlying Req client: auth, retries, timeouts, testing
 - Optional [translators](lib/req_ai/translator.ex) for your own request, response, error, and event shapes
 
@@ -48,7 +48,7 @@ Return `{:halt, acc}` to stop consuming the stream. Events retain the provider's
 Add ReqAI to your dependencies in `mix.exs`:
 
 ```elixir
-{:req_ai, github: "benjreinhart/req_ai"}
+{:req_ai, ">= 0.0.0"}
 ```
 
-Requires Elixir 1.18 or later.
+Requires Elixir 1.18 or later and Req 0.8.0 or later.
