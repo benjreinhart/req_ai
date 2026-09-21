@@ -12,7 +12,7 @@ defmodule ReqAI.TelemetryTest do
 
   @openai_error_response %Req.Response{
     status: 400,
-    body: %{"error" => "Bad Request"}
+    body: "Bad Request"
   }
 
   defmodule CustomTelemetry do
@@ -129,7 +129,7 @@ defmodule ReqAI.TelemetryTest do
       assert stop_meta == expected_stop_meta
     end
 
-    test "emits start and stop when unsuccessful" do
+    test "emits start and stop without extracting response metadata when unsuccessful" do
       ref = :telemetry_test.attach_event_handlers(self(), @events)
 
       provider = Provider.new(ReqAI.Provider.OpenAI)

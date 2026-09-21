@@ -138,6 +138,12 @@ defmodule ReqAI.ProviderTest do
       response = Req.Response.new(status: 200, body: %{})
 
       assert provider.response_metadata(%{}, response, []) == %{}
+
+      response = Req.Response.new(status: 400, body: "Bad Request")
+
+      assert provider.response_metadata(%{feature: :summarizer}, response, []) == %{
+               feature: :summarizer
+             }
     end)
   end
 

@@ -35,7 +35,8 @@ defmodule ReqAI.Provider.Anthropic do
   end
 
   @impl true
-  def response_metadata(metadata, %Req.Response{body: body}, _opts) do
+  def response_metadata(metadata, %Req.Response{status: status, body: body}, _opts)
+      when status in 200..299 do
     stop_reason = Map.get(body, "stop_reason")
 
     metadata
@@ -44,6 +45,8 @@ defmodule ReqAI.Provider.Anthropic do
     |> put_attr(:input_tokens, get_in(body, ["usage", "input_tokens"]))
     |> put_attr(:output_tokens, get_in(body, ["usage", "output_tokens"]))
   end
+
+  def response_metadata(metadata, %Req.Response{}, _opts), do: metadata
 
   @impl true
   def event_metadata(metadata, %{data: %{"type" => "message_start", "message" => message}}, _, _) do

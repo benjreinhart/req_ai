@@ -31,13 +31,16 @@ defmodule ReqAI.Provider.XAI do
   end
 
   @impl true
-  def response_metadata(metadata, %Req.Response{body: body}, _opts) do
+  def response_metadata(metadata, %Req.Response{status: status, body: body}, _opts)
+      when status in 200..299 do
     metadata
     |> put_attr(:response_model, Map.get(body, "model"))
     |> put_attr(:finish_reasons, finish_reasons(body))
     |> put_attr(:input_tokens, get_in(body, ["usage", "input_tokens"]))
     |> put_attr(:output_tokens, get_in(body, ["usage", "output_tokens"]))
   end
+
+  def response_metadata(metadata, %Req.Response{}, _opts), do: metadata
 
   @impl true
   def event_metadata(metadata, %{data: %{"response" => response}}, _, _) do
