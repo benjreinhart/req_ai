@@ -1,5 +1,9 @@
 # ReqAI
 
+[![CI](https://github.com/benjreinhart/req_ai/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/benjreinhart/req_ai/actions/workflows/ci.yml)
+[![License](https://img.shields.io/hexpm/l/req_ai.svg)](https://github.com/benjreinhart/req_ai/blob/main/LICENSE.md)
+[![Hex version](https://img.shields.io/hexpm/v/req_ai.svg)](https://hex.pm/packages/req_ai)
+
 ReqAI is a lightweight Elixir client for LLM APIs, built on [Req](https://github.com/wojtekmach/req). It provides consistent generation, streaming, and telemetry with provider-native requests and responses. Custom providers, telemetry, and request and response bodies are supported through optional behaviours.
 
 ```elixir
