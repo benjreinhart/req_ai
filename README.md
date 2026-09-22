@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/hexpm/l/req_ai.svg)](https://github.com/benjreinhart/req_ai/blob/main/LICENSE.md)
 [![Hex version](https://img.shields.io/hexpm/v/req_ai.svg)](https://hex.pm/packages/req_ai)
 
-ReqAI is a lightweight Elixir client for LLM APIs, built on [Req](https://github.com/wojtekmach/req). It provides consistent generation, streaming, and telemetry with provider-native requests and responses. Custom providers, telemetry, and request and response bodies are supported through optional behaviours.
+ReqAI is a lightweight Elixir client for LLM APIs, built on [Req](https://github.com/wojtekmach/req).
 
 ```elixir
 {:ok, %Req.Response{}, body} =
@@ -19,10 +19,10 @@ IO.puts(text)
 
 ## Philosophy
 
-* **Don't unify request and response bodies.** Providers are already too different and they diverge further every month. Don't force users into a poor abstraction.
-* **Stay small.** The library should be small, with few dependencies and abstractions. Include a handful of popular providers, but leave the rest to users.
-* **Be easy to extend.** Cover the common cases well, then get out of the way. Integrating applications know their needs much better than a general purpose library does. Allow them to bring their own abstractions.
-* **Treat observability as a first-class feature.** Telemetry is tedious. The library should ship the important parts and make the rest easy to add.
+- **Preserve provider-native formats.** Use the request and response formats defined by each provider’s API so your code maps directly to its documentation and examples.
+- **Keep the core small.** Focus on a few powerful abstractions and a handful of popular providers.
+- **Make extension easy.** Support custom providers, telemetry, and request and response body transformations so applications can bring their own conventions.
+- **Treat observability as a first-class feature.** Include useful telemetry for common events and make it easy to add application-specific instrumentation.
 
 ## Features
 
