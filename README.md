@@ -1,8 +1,8 @@
 # ReqAI
 
 [![CI](https://github.com/benjreinhart/req_ai/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/benjreinhart/req_ai/actions/workflows/ci.yml)
-[![License](https://img.shields.io/hexpm/l/req_ai.svg)](https://github.com/benjreinhart/req_ai/blob/main/LICENSE.md)
 [![Hex version](https://img.shields.io/hexpm/v/req_ai.svg)](https://hex.pm/packages/req_ai)
+[![Hex Docs](http://img.shields.io/badge/hex.pm-docs-green.svg?style=flat)](https://req-ai.hexdocs.pm)
 
 ReqAI is a lightweight Elixir client for LLM APIs, built on [Req](https://github.com/wojtekmach/req).
 
