@@ -1,6 +1,21 @@
 defmodule ReqAI.Provider.XAI do
   @moduledoc """
   Provider-native adapter for xAI's [Responses API](https://docs.x.ai/developers/rest-api-reference/inference/chat#create-new-response).
+
+  Configure bearer authentication through Req:
+
+      provider =
+        ReqAI.Provider.new(ReqAI.Provider.XAI,
+          req: [auth: {:bearer, System.fetch_env!("XAI_API_KEY")}]
+        )
+
+      ReqAI.generate(provider, %{model: "grok-4.3", input: "Say hello"})
+
+  Authentication and other `:req` options can also be set for this provider under
+  `config :req_ai, :providers`. Options passed explicitly to `ReqAI.Provider.new/2`
+  take precedence over application configuration.
+
+  This adapter uses Responses API bodies and events.
   """
 
   @behaviour ReqAI.Provider

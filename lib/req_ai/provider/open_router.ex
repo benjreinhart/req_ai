@@ -1,6 +1,24 @@
 defmodule ReqAI.Provider.OpenRouter do
   @moduledoc """
   Provider-native adapter for OpenRouter's [Chat Completions API](https://openrouter.ai/docs/api/api-reference/chat/create-a-chat-completion).
+
+  Configure bearer authentication through Req:
+
+      provider =
+        ReqAI.Provider.new(ReqAI.Provider.OpenRouter,
+          req: [auth: {:bearer, System.fetch_env!("OPENROUTER_API_KEY")}]
+        )
+
+      ReqAI.generate(provider, %{
+        model: "openai/gpt-4",
+        messages: [%{role: "user", content: "Say hello"}]
+      })
+
+  Authentication and other `:req` options can also be set for this provider under
+  `config :req_ai, :providers`. Options passed explicitly to `ReqAI.Provider.new/2`
+  take precedence over application configuration.
+
+  This adapter uses Chat Completions API bodies and events.
   """
 
   @behaviour ReqAI.Provider

@@ -1,15 +1,19 @@
 defmodule ReqAI.MixProject do
   use Mix.Project
 
+  @version "0.0.1-alpha.1"
+  @source_url "https://github.com/benjreinhart/req_ai"
+
   def project do
     [
       app: :req_ai,
-      version: "0.0.1-alpha.1",
+      version: @version,
       elixir: "~> 1.18",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
-      package: package()
+      package: package(),
+      docs: docs()
     ]
   end
 
@@ -34,7 +38,25 @@ defmodule ReqAI.MixProject do
     [
       description: "Req-based LLM client with streaming, telemetry, and provider-native data.",
       licenses: ["Apache-2.0"],
-      links: %{"GitHub" => "https://github.com/benjreinhart/req_ai"}
+      links: %{"GitHub" => @source_url}
+    ]
+  end
+
+  defp docs do
+    [
+      main: "readme",
+      source_url: @source_url,
+      source_ref: "v#{@version}",
+      extras: ["README.md", "guides/getting-started.md"],
+      groups_for_extras: [
+        Overview: ["README.md"],
+        Guides: ~r/^guides\//
+      ],
+      groups_for_modules: [
+        Core: [ReqAI, ReqAI.Provider],
+        Extension: [ReqAI.Translator, ReqAI.Telemetry],
+        Providers: ~r/^ReqAI\.Provider\./
+      ]
     ]
   end
 end

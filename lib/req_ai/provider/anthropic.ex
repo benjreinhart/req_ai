@@ -1,6 +1,24 @@
 defmodule ReqAI.Provider.Anthropic do
   @moduledoc """
   Provider-native adapter for Anthropic's [Messages API](https://platform.claude.com/docs/en/api/messages/create).
+
+  Sets the `anthropic-version: 2023-06-01` header unless explicitly overridden.
+  Configure API key authentication through Req:
+
+      provider =
+        ReqAI.Provider.new(ReqAI.Provider.Anthropic,
+          req: [headers: [{"x-api-key", System.fetch_env!("ANTHROPIC_API_KEY")}]]
+        )
+
+      ReqAI.generate(provider, %{
+        model: "claude-sonnet-4-6",
+        max_tokens: 256,
+        messages: [%{role: "user", content: "Say hello"}]
+      })
+
+  Authentication and other `:req` options can also be set for this provider under
+  `config :req_ai, :providers`. Options passed explicitly to `ReqAI.Provider.new/2`
+  take precedence over application configuration.
   """
 
   @behaviour ReqAI.Provider

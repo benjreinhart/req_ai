@@ -20,6 +20,32 @@ defmodule ReqAI.Translator do
   HTTP requests, the full `Req.Response` remains the second tuple element and
   the application value is the third. Successful streams use the caller's
   accumulator as that value; `response/2` is not invoked for streams.
+
+  ## Example
+
+  An application can accept a prompt string and translate it into an OpenAI
+  request while keeping the native response and event formats:
+
+      defmodule MyApp.OpenAITranslator do
+        @behaviour ReqAI.Translator
+
+        @impl true
+        def request(prompt, opts) do
+          %{model: Keyword.fetch!(opts, :model), input: prompt}
+        end
+      end
+
+      provider =
+        ReqAI.Provider.new(ReqAI.Provider.OpenAI,
+          translator: MyApp.OpenAITranslator,
+          model: "gpt-5.4-mini",
+          req: [auth: {:bearer, System.fetch_env!("OPENAI_API_KEY")}]
+        )
+
+      ReqAI.generate(provider, "Say hello")
+
+  Here the translator explicitly reads `:model` from its options. Built-in
+  providers do not otherwise merge those options into the request body.
   """
 
   @doc """

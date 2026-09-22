@@ -5,6 +5,32 @@ defmodule ReqAI.Provider do
   Providers build the `Req.Request` used to execute provider-native request
   data. An optional `ReqAI.Translator` can translate application values at the
   provider boundary.
+
+  ## Custom providers
+
+  Implement `c:build/3` to support generation. For example, an application-owned
+  JSON endpoint can use the same calling convention as the built-in providers:
+
+      defmodule MyApp.Provider do
+        @behaviour ReqAI.Provider
+
+        @impl true
+        def build(req, request, _opts) do
+          Req.merge(req,
+            method: :post,
+            url: "https://llm.example.com/generate",
+            json: request
+          )
+        end
+      end
+
+      provider = ReqAI.Provider.new(MyApp.Provider)
+      ReqAI.generate(provider, %{prompt: "Say hello"})
+
+  To support streaming, also implement `c:decode_event/3` and use `opts[:stream]`
+  in `c:build/3` to select the endpoint's streaming mode. The decoder returns a
+  list of events; returning `[]` drops an event. Req handles transport framing
+  such as SSE, while the provider decodes the native payload.
   """
 
   @doc """
@@ -49,9 +75,12 @@ defmodule ReqAI.Provider do
 
   The `:req` option contains options passed to `Req.new/2`. These are
   merged with any `:req` options configured for the adapter under
-  `config :req_ai, :providers`. All remaining options are stored on the
-  provider and passed to `build/3` and the configured translator callbacks for
-  each request.
+  `config :req_ai, :providers`, with explicit options taking precedence.
+  Configuration is read when the provider is created. Only `:req` is read from
+  application configuration; extension options must be passed here directly.
+  After extracting `:req`, `:translator`, `:telemetry`, and
+  `:telemetry_metadata`, remaining options are stored on the provider and
+  passed to `c:build/3` and the configured translator callbacks for each request.
 
   Built-in adapters take body parameters, including `:model`, from the request
   passed to `ReqAI.generate/2` or `ReqAI.stream/4`. They do not merge provider

@@ -1,6 +1,21 @@
 defmodule ReqAI.Provider.Gemini do
   @moduledoc """
   Provider-native adapter for Gemini's [Interactions API](https://ai.google.dev/api/interactions-api-v1).
+
+  Configure API key authentication through Req:
+
+      provider =
+        ReqAI.Provider.new(ReqAI.Provider.Gemini,
+          req: [headers: [{"x-goog-api-key", System.fetch_env!("GEMINI_API_KEY")}]]
+        )
+
+      ReqAI.generate(provider, %{model: "gemini-3.1-flash-lite", input: "Say hello"})
+
+  Authentication and other `:req` options can also be set for this provider under
+  `config :req_ai, :providers`. Options passed explicitly to `ReqAI.Provider.new/2`
+  take precedence over application configuration.
+
+  This adapter uses Interactions API bodies and events.
   """
 
   @behaviour ReqAI.Provider

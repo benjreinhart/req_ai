@@ -23,8 +23,8 @@ defmodule ReqAI do
   application-owned value produced from that response.
 
   For successful responses, the third element is produced by
-  `ReqAI.Translator.response/2`; for non-successful responses, it is produced
-  by `ReqAI.Translator.error/2`. Both default to `response.body` when their
+  `c:ReqAI.Translator.response/2`; for non-successful responses, it is produced
+  by `c:ReqAI.Translator.error/2`. Both default to `response.body` when their
   callback is not implemented. Transport and decoding failures return
   `{:error, exception}` because no HTTP response or provider-native body is
   available.
@@ -69,7 +69,7 @@ defmodule ReqAI do
   Streams a response into an accumulator.
 
   Raises `ArgumentError` if the provider does not implement
-  `ReqAI.Provider.decode_event/3`.
+  `c:ReqAI.Provider.decode_event/3`.
 
   The provider builds the request with streaming enabled. `fun` receives each
   provider-native event, the response as it is being received, and the current
@@ -79,14 +79,14 @@ defmodule ReqAI do
   Req handles transport formats such as SSE and NDJSON, then the provider
   decodes the resulting values and drops protocol-only events. For the built-in
   providers, an SSE event remains a map and its JSON payload is decoded in the
-  `:data` field. When a translator implements `ReqAI.Translator.event/3`, `fun`
+  `:data` field. When a translator implements `c:ReqAI.Translator.event/3`, `fun`
   receives its return value. The accompanying response remains the in-progress
   `Req.Response`.
 
   The completed `Req.Response` remains available. For a successful
   stream, the accumulator is the application-owned result of consuming the
   translated events. For a non-successful stream, the third element is produced
-  by `ReqAI.Translator.error/2`, defaulting to the buffered response body.
+  by `c:ReqAI.Translator.error/2`, defaulting to the buffered response body.
 
   Non-successful HTTP responses are not passed to `fun`. Their streamed data is
   instead collected into `response.body`; JSON error bodies are decoded when
