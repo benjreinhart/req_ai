@@ -1,193 +1,98 @@
 # Getting Started
 
-ReqAI provides a common calling convention for LLM APIs while preserving each provider's request and response formats. You configure a provider, pass it a native request body, and either generate a response or consume streamed events.
+ReqAI provides a common calling convention on top of LLM provider APIs. You configure a `ReqAI.Provider` and then invoke it using `ReqAI.generate/2` or `ReqAI.stream/4`.
 
 > #### Req compatibility {: .info}
 >
 > ReqAI depends on Req 0.8 and requires Elixir 1.18 or later.
 
-## Configure providers
-
-`ReqAI.Provider.new/2` accepts a provider module and options. HTTP configuration goes under `:req`: authentication, headers, timeouts, retries, and other options supported by `Req.new/2`.
-
-You can set application defaults, supply options when creating a provider, or combine the two.
-
-### Application configuration
-
-Set shared HTTP options for each provider in `config/config.exs`:
-
-```elixir
-import Config
-
-config :req_ai, :providers, [
-  {ReqAI.Provider.OpenAI, req: [receive_timeout: 60_000]},
-  {ReqAI.Provider.Anthropic, req: [receive_timeout: 60_000]}
-]
-```
-
-Read credentials at application startup in `config/runtime.exs`:
-
-```elixir
-import Config
-
-config :req_ai, :providers, [
-  {ReqAI.Provider.OpenAI,
-   req: [auth: {:bearer, System.fetch_env!("OPENAI_API_KEY")}]},
-  {ReqAI.Provider.Anthropic,
-   req: [headers: [{"x-api-key", System.fetch_env!("ANTHROPIC_API_KEY")}]]}
-]
-```
-
-Elixir merges these keyword configurations, so the runtime credentials are combined with the timeouts from `config/config.exs`.
-
-Create providers using those defaults:
-
-```elixir
-openai = ReqAI.Provider.new(ReqAI.Provider.OpenAI)
-anthropic = ReqAI.Provider.new(ReqAI.Provider.Anthropic)
-```
-
-The built-in adapters supply their API endpoints. The Anthropic adapter also supplies the `anthropic-version: 2023-06-01` header unless you override it.
-
-### Configure a provider directly
-
-You can instead pass the same HTTP options directly to `ReqAI.Provider.new/2`, without application configuration:
-
-```elixir
-openai =
-  ReqAI.Provider.new(ReqAI.Provider.OpenAI,
-    req: [
-      auth: {:bearer, System.fetch_env!("OPENAI_API_KEY")},
-      receive_timeout: 60_000
-    ]
-  )
-
-anthropic =
-  ReqAI.Provider.new(ReqAI.Provider.Anthropic,
-    req: [
-      headers: [{"x-api-key", System.fetch_env!("ANTHROPIC_API_KEY")}],
-      receive_timeout: 60_000
-    ]
-  )
-```
-
-ReqAI does not automatically read API key environment variables. These examples explicitly read them and pass their values to Req.
-
-### Override request configuration
-
-Options passed when creating a provider take precedence over its application defaults. For example, keep the configured credentials but use a longer receive timeout and disable retries:
-
-```elixir
-openai =
-  ReqAI.Provider.new(ReqAI.Provider.OpenAI,
-    req: [receive_timeout: 120_000, retry: false]
-  )
-```
-
-Options are merged by Req, e.g., explicitly supplied headers replace the configured value for that name.
-
-To use an API-compatible proxy, override `:base_url` with the full endpoint, including its path:
-
-```elixir
-proxied_openai =
-  ReqAI.Provider.new(ReqAI.Provider.OpenAI,
-    req: [base_url: "https://llm-proxy.example.com/v1/responses"]
-  )
-```
-
-### HTTP options and body parameters
-
-Put HTTP options under `:req` when creating the provider. Put model names and other API body parameters in the request passed to `ReqAI.generate/2` or `ReqAI.stream/4`.
-
-Arbitrary options can be passed to `ReqAI.Provider.new/2`. These will later be passed to the provider, telemetry, and translator modules when their callbacks are invoked. This enables clients to supply runtime configuration when desired.
-
 ## Generate a response
 
-OpenAI's [Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create) accepts `input`:
+At its simplest, ReqAI provides everything except an API key. The below example calls OpenAI:
 
 ```elixir
-openai_request = %{
-  model: "gpt-5.4-mini",
-  input: "Explain pattern matching in one sentence."
-}
+provider =
+  ReqAI.Provider.new(ReqAI.Provider.OpenAI,
+    req: [auth: {:bearer, System.fetch_env!("OPENAI_API_KEY")}]
+  )
 
-{:ok, %Req.Response{}, body} = ReqAI.generate(openai, openai_request)
+{:ok, %Req.Response{}, body} =
+  ReqAI.generate(provider, model: "gpt-5.4-mini", input: "Say hello")
 
 %{"output" => [%{"content" => [%{"text" => text}]}]} = body
 
 IO.puts(text)
 ```
 
-Anthropic's [Messages API](https://platform.claude.com/docs/en/api/messages/create) accepts `messages` and requires `max_tokens`:
+Notice the request body (the `model` and `input` keyword list) and response body are the same format as the underlying provider, in this case, the [Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create). By default, the request and response bodies will always match that of the underlying provider's API.
+
+Here's another example, this time using Anthropic's [Messages API](https://platform.claude.com/docs/en/api/messages/create):
 
 ```elixir
-anthropic_request = %{
-  model: "claude-sonnet-4-6",
-  max_tokens: 256,
-  messages: [%{role: "user", content: "Explain pattern matching in one sentence."}]
-}
+provider =
+  ReqAI.Provider.new(ReqAI.Provider.Anthropic,
+    req: [headers: [{"x-api-key", System.fetch_env!("ANTHROPIC_API_KEY")}]]
+  )
 
-{:ok, response, body} = ReqAI.generate(anthropic, anthropic_request)
+{:ok, %Req.Response{}, body} =
+  ReqAI.generate(provider,
+    model: "claude-sonnet-4-6",
+    max_tokens: 256,
+    messages: [%{role: "user", content: "Say hello"}]
+  )
 
 %{"content" => [%{"text" => text}]} = body
 
 IO.puts(text)
 ```
 
-Choose a model available to your account. Requests can be maps or keyword lists. ReqAI sets the `stream` body parameter for you.
+ReqAI intentionally does not standardize provider request or response bodies. However, users of this library can bring their own request and response body abstraction by configuring a [translator](https://req-ai.hexdocs.pm/ReqAI.Translator.html).
 
-On HTTP success, the result is `{:ok, response, body}`. `response` is the full `Req.Response`, including status and headers; `body` is its decoded provider-native body unless you configure a translator. These examples extract text blocks while leaving other output available in `body`.
+> #### Configuration {: .info}
+>
+> You can also configure providers in your application config, e.g., config/runtime.exs. See [Configuration](configuration.md)
 
 ## Stream a response
 
-Pass the same request to `ReqAI.stream/4`, along with an initial accumulator and a callback. The callback receives a decoded event, the in-progress response, and the accumulator. Return `{:cont, acc}` to continue or `{:halt, acc}` to stop consuming the stream.
-
-For OpenAI, collect text deltas and print them as they arrive:
+Streaming is supported using `ReqAI.stream/4`. Using the same OpenAI provider from before, we can stream a haiku:
 
 ```elixir
-collect_openai = fn
-  %{data: %{"type" => "response.output_text.delta", "delta" => text}}, _response, chunks ->
-    IO.write(text)
-    {:cont, [text | chunks]}
+request = %{
+  model: "gpt-5.4-mini",
+  input: "Write a Haiku"
+}
 
-  _event, _response, chunks ->
-    {:cont, chunks}
-end
+{:ok, %Req.Response{}, haiku} =
+  ReqAI.stream(provider, request, [], fn event, %Req.Response{}, iodata ->
+    case event do
+      %{event: "response.output_text.delta", data: %{"delta" => delta}} ->
+        IO.write(delta)
+        {:cont, [iodata, delta]}
 
-{:ok, response, chunks} = ReqAI.stream(openai, openai_request, [], collect_openai)
-text = chunks |> Enum.reverse() |> IO.iodata_to_binary()
+      %{event: "response.completed", data: %{"response" => %{"usage" => usage}}} ->
+        IO.write("\n\n=== Total tokens: #{usage["total_tokens"]}\n")
+        {:halt, IO.iodata_to_binary(iodata)}
+
+      _ ->
+        {:cont, iodata}
+    end
+  end)
+
+IO.puts(haiku)
 ```
 
-Anthropic has a different event shape:
+Streaming takes an `accum` and callback function. The function is passed the decoded `event`, the `%Req.Response{}`, and the `accum` (same as the underlying `Req.stream/4`).
+
+Just as in `ReqAI.generate/2`, `ReqAI.stream/4` passes the request and response bodies through unmodified.
+
+## Return values
+
+The examples above match successful responses for brevity. Real application code will want to handle both success and failure cases.
 
 ```elixir
-collect_anthropic = fn
-  %{data: %{"type" => "content_block_delta", "delta" => %{"type" => "text_delta", "text" => text}}},
-  _response,
-  chunks ->
-    IO.write(text)
-    {:cont, [text | chunks]}
-
-  _event, _response, chunks ->
-    {:cont, chunks}
-end
-
-{:ok, response, chunks} = ReqAI.stream(anthropic, anthropic_request, [], collect_anthropic)
-text = chunks |> Enum.reverse() |> IO.iodata_to_binary()
-```
-
-For both adapters, SSE events remain maps with JSON decoded into `event.data`. Protocol-only events such as keepalives are dropped. Other events keep their provider-native structure; the callbacks above only collect text.
-
-The final third tuple element is your accumulator. ReqAI does not assemble a complete provider response from streamed events. Halting returns the accumulated value on an otherwise successful HTTP response; it does not imply the model finished generating.
-
-## Handle errors
-
-The examples above match successful responses for brevity. In application code, handle both non-successful HTTP responses and failures without a completed response:
-
-```elixir
-case ReqAI.generate(openai, openai_request) do
-  {:ok, response, body} ->
-    {:ok, body, response.headers}
+case ReqAI.generate(provider, request) do
+  {:ok, _response, body} ->
+    {:ok, body}
 
   {:error, response, body} ->
     {:error, {:http, response.status, body}}
@@ -197,12 +102,17 @@ case ReqAI.generate(openai, openai_request) do
 end
 ```
 
+There are two main differences here from `Req`'s return values:
+
+1. Only 2xx responses are returned with `:ok` tuples. A 4xx or 5xx would be an `:error` tuple (the second branch above).
+2. The `:ok` and `:error` tuples (non-exceptional) return a third argument. By default, it's the `body` of the `%Req.Response{}` struct. If using [translators](https://req-ai.hexdocs.pm/ReqAI.Translator.html), it would be the result of calling one of the translator behaviour callbacks.
+
 An HTTP error, such as a 401 or 429, preserves the response and provider error body. A returned transport or decoding error carries an exception instead.
 
 Streaming failures can include a partial response and the accumulator collected so far:
 
 ```elixir
-case ReqAI.stream(openai, openai_request, [], collect_openai) do
+case ReqAI.stream(provider, request, [], fun) do
   {:ok, response, chunks} ->
     text = chunks |> Enum.reverse() |> IO.iodata_to_binary()
     {:ok, text, response.headers}

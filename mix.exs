@@ -47,7 +47,7 @@ defmodule ReqAI.MixProject do
       main: "readme",
       source_url: @source_url,
       source_ref: "v#{@version}",
-      extras: ["README.md", "guides/getting-started.md"],
+      extras: ["README.md", "guides/getting-started.md", "guides/configuration.md"],
       groups_for_extras: [
         Overview: ["README.md"],
         Guides: ~r/^guides\//

@@ -29,10 +29,10 @@ See the [Getting Started guide](guides/getting-started.md) for configuration and
 ## Features
 
 - Generate and stream with one calling convention across providers
-- Adapters for Anthropic, OpenAI, Gemini, xAI, and OpenRouter. BYO using the [Provider](lib/req_ai/provider.ex) behaviour
-- Telemetry for lifecycle, duration, token usage, time to first chunk, etc. BYO using the [Telemetry](lib/req_ai/telemetry.ex) behaviour
+- Adapters for Anthropic, OpenAI, Gemini, xAI, and OpenRouter. BYO using the [Provider](https://req-ai.hexdocs.pm/ReqAI.Provider.html) behaviour
+- Telemetry for lifecycle, duration, token usage, time to first chunk, etc. BYO using the [Telemetry](https://req-ai.hexdocs.pm/ReqAI.Telemetry.html) behaviour
 - Full control of the underlying Req client: auth, retries, timeouts, testing
-- Optional [translators](lib/req_ai/translator.ex) for your own request, response, error, and event shapes
+- Optional [translators](https://req-ai.hexdocs.pm/ReqAI.Translator.html) for your own request, response, error, and event shapes
 
 ## Streaming
 
