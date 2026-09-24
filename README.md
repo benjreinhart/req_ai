@@ -17,7 +17,7 @@ ReqAI is a lightweight Elixir client for LLM APIs, built on [Req](https://github
 IO.puts(text)
 ```
 
-See the [Getting Started guide](guides/getting-started.md) for configuration and usage examples.
+See the [Getting Started guide](https://req-ai.hexdocs.pm/getting-started.html) for configuration and usage examples.
 
 ## Philosophy
 
