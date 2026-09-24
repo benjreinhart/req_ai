@@ -1,7 +1,7 @@
 defmodule ReqAI.MixProject do
   use Mix.Project
 
-  @version "0.0.1-alpha.2"
+  @version "0.0.1-alpha.3"
   @source_url "https://github.com/benjreinhart/req_ai"
 
   def project do
