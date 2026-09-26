@@ -22,7 +22,7 @@ Second, you can configure a provider directly in code. This is useful if you nee
 
 ```elixir
 provider =
-  Provider.new(ReqAI.Provider.OpenAI,
+  ReqAI.Provider.new(ReqAI.Provider.OpenAI,
     req: [auth: {:bearer, System.fetch_env!("OPENAI_API_KEY")}]
   )
 
@@ -36,10 +36,8 @@ This guide assumes API keys are configured in the application configuration. Lea
 At its simplest, ReqAI provides everything except an API key. The below example calls OpenAI:
 
 ```elixir
-alias ReqAI.Provider.OpenAI
-
 {:ok, %Req.Response{}, %{"output" => [%{"content" => [content]}]}} =
-  ReqAI.generate(OpenAI,
+  ReqAI.generate(ReqAI.Provider.OpenAI,
     model: "gpt-5.4-mini",
     input: "Say hello"
   )
@@ -52,10 +50,8 @@ Notice the request body (the `model` and `input` keyword list) and response body
 Here's another example, this time using Anthropic's [Messages API](https://platform.claude.com/docs/en/api/messages/create):
 
 ```elixir
-alias ReqAI.Provider.Anthropic
-
 {:ok, %Req.Response{}, %{"content" => [content]}} =
-  ReqAI.generate(Anthropic,
+  ReqAI.generate(ReqAI.Provider.Anthropic,
     model: "claude-opus-5-5",
     max_tokens: 256,
     messages: [%{role: "user", content: "Say hello"}]
@@ -77,7 +73,7 @@ request = %{
 }
 
 {:ok, %Req.Response{}, haiku} =
-  ReqAI.stream(OpenAI, request, [], fn event, %Req.Response{}, iodata ->
+  ReqAI.stream(ReqAI.Provider.OpenAI, request, [], fn event, %Req.Response{}, iodata ->
     case event do
       %{event: "response.output_text.delta", data: %{"delta" => delta}} ->
         IO.write(delta)
@@ -97,7 +93,7 @@ IO.puts(haiku)
 
 Streaming takes an `accum` and callback function. The function is passed the decoded `event`, the `%Req.Response{}`, and the `accum` (same as the underlying `Req.stream/4`).
 
-Just as in `ReqAI.generate/2`, `ReqAI.stream/4` passes the request and response bodies through unmodified.
+ReqAI uses each provider's request and event formats. Built-in adapters convert keyword request bodies to maps and override the body's `stream` field: `false` for `ReqAI.generate/2`, `true` for `ReqAI.stream/4`. For SSE streams, they decode JSON payloads in the event's `:data` field and discard ping events, empty data, and `[DONE]` markers.
 
 ## Return values
 
