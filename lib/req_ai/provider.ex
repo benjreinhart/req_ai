@@ -24,8 +24,7 @@ defmodule ReqAI.Provider do
         end
       end
 
-      provider = ReqAI.Provider.new(MyApp.Provider)
-      ReqAI.generate(provider, %{prompt: "Say hello"})
+      ReqAI.generate(MyApp.Provider, %{prompt: "Say hello"})
 
   To support streaming, also implement `c:decode_event/3` and use `opts[:stream]`
   in `c:build/3` to select the endpoint's streaming mode. The decoder returns a
@@ -70,6 +69,10 @@ defmodule ReqAI.Provider do
 
   @doc """
   Creates a configured provider using `module` as its adapter.
+
+  If no additional options are needed, pass the module directly to
+  `ReqAI.generate/2` or `ReqAI.stream/4`. Create and reuse a provider
+  explicitly to retain its configuration or supply extension options.
 
   `module` must implement the `ReqAI.Provider` behaviour.
 

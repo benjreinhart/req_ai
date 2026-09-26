@@ -1,60 +1,74 @@
 # Getting Started
 
-ReqAI provides a common calling convention on top of LLM provider APIs. You configure a `ReqAI.Provider` and then invoke it using `ReqAI.generate/2` or `ReqAI.stream/4`.
+ReqAI provides a common calling convention on top of LLM provider APIs. Pass a provider module or a configured `ReqAI.Provider` to `ReqAI.generate/2` or `ReqAI.stream/4`.
 
 > #### Req compatibility {: .info}
 >
 > ReqAI depends on Req 0.8 and requires Elixir 1.18 or later.
+
+## Configuring API keys
+
+To call any provider, you'll need to configure it with an API key. You have two options.
+
+First, you can use the application configuration. In `config/runtime.exs`:
+
+```elixir
+config :req_ai, :providers, [
+  {ReqAI.Provider.OpenAI, req: [auth: {:bearer, System.fetch_env!("OPENAI_API_KEY")}]}
+]
+```
+
+Second, you can configure a provider directly in code. This is useful if you need to switch keys dynamically, or when working in scripts or without a Mix project:
+
+```elixir
+provider =
+  Provider.new(ReqAI.Provider.OpenAI,
+    req: [auth: {:bearer, System.fetch_env!("OPENAI_API_KEY")}]
+  )
+
+ReqAI.generate(provider, request)
+```
+
+This guide assumes API keys are configured in the application configuration. Learn more in [Provider configuration](./configuration.md).
 
 ## Generate a response
 
 At its simplest, ReqAI provides everything except an API key. The below example calls OpenAI:
 
 ```elixir
-provider =
-  ReqAI.Provider.new(ReqAI.Provider.OpenAI,
-    req: [auth: {:bearer, System.fetch_env!("OPENAI_API_KEY")}]
+alias ReqAI.Provider.OpenAI
+
+{:ok, %Req.Response{}, %{"output" => [%{"content" => [content]}]}} =
+  ReqAI.generate(OpenAI,
+    model: "gpt-5.4-mini",
+    input: "Say hello"
   )
 
-{:ok, %Req.Response{}, body} =
-  ReqAI.generate(provider, model: "gpt-5.4-mini", input: "Say hello")
-
-%{"output" => [%{"content" => [%{"text" => text}]}]} = body
-
-IO.puts(text)
+IO.puts(content["text"])
 ```
 
-Notice the request body (the `model` and `input` keyword list) and response body are the same format as the underlying provider, in this case, the [Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create). By default, the request and response bodies will always match that of the underlying provider's API.
+Notice the request body (the `model` and `input` keyword list) and response body are the same format as the underlying provider, in this case, OpenAI's [Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create). By default, the request and response bodies will always match that of the underlying provider's API.
 
 Here's another example, this time using Anthropic's [Messages API](https://platform.claude.com/docs/en/api/messages/create):
 
 ```elixir
-provider =
-  ReqAI.Provider.new(ReqAI.Provider.Anthropic,
-    req: [headers: [{"x-api-key", System.fetch_env!("ANTHROPIC_API_KEY")}]]
-  )
+alias ReqAI.Provider.Anthropic
 
-{:ok, %Req.Response{}, body} =
-  ReqAI.generate(provider,
-    model: "claude-sonnet-4-6",
+{:ok, %Req.Response{}, %{"content" => [content]}} =
+  ReqAI.generate(Anthropic,
+    model: "claude-opus-5-5",
     max_tokens: 256,
     messages: [%{role: "user", content: "Say hello"}]
   )
 
-%{"content" => [%{"text" => text}]} = body
-
-IO.puts(text)
+IO.puts(content["text"])
 ```
 
-ReqAI intentionally does not standardize provider request or response bodies. However, users of this library can bring their own request and response body abstraction by configuring a [translator](https://req-ai.hexdocs.pm/ReqAI.Translator.html).
-
-> #### Configuration {: .info}
->
-> You can also configure providers in your application config, e.g., config/runtime.exs. See [Configuration](configuration.md)
+ReqAI intentionally does not standardize provider request or response bodies. Instead, the code maps directly to the underlying provider API. If desired, you can bring your own request and response body abstraction by configuring a [translator](https://req-ai.hexdocs.pm/ReqAI.Translator.html).
 
 ## Stream a response
 
-Streaming is supported using `ReqAI.stream/4`. Using the same OpenAI provider from before, we can stream a haiku:
+Streaming is supported using `ReqAI.stream/4`. For example, we can stream a haiku:
 
 ```elixir
 request = %{
@@ -63,7 +77,7 @@ request = %{
 }
 
 {:ok, %Req.Response{}, haiku} =
-  ReqAI.stream(provider, request, [], fn event, %Req.Response{}, iodata ->
+  ReqAI.stream(OpenAI, request, [], fn event, %Req.Response{}, iodata ->
     case event do
       %{event: "response.output_text.delta", data: %{"delta" => delta}} ->
         IO.write(delta)

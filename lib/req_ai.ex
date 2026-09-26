@@ -3,8 +3,9 @@ defmodule ReqAI do
   A lightweight Elixir client for LLM APIs, built on Req.
 
   Provides consistent generation, streaming, and telemetry with provider-native
-  requests and responses. Configure an adapter with `ReqAI.Provider.new/2`, then
-  call `generate/2` or `stream/4` with a provider-native request body.
+  requests and responses. Call `generate/2` or `stream/4` with a provider module
+  and a provider-native request body. Use `ReqAI.Provider.new/2` to configure
+  a provider explicitly when additional options are needed.
 
   Optional `ReqAI.Translator` callbacks let applications define their own shared
   representations while retaining access to the full `Req.Response`.
@@ -16,6 +17,10 @@ defmodule ReqAI do
 
   @doc """
   Generates a response.
+
+  Accepts a configured provider or a provider module. Passing a module calls
+  `ReqAI.Provider.new/2` with no additional options on each invocation, reading
+  the provider's application-configured HTTP options at that time.
 
   The configured provider builds the request with streaming disabled. The
   `Req.Response` is always returned unchanged as the second element when the
@@ -29,10 +34,14 @@ defmodule ReqAI do
   `{:error, exception}` because no HTTP response or provider-native body is
   available.
   """
-  @spec generate(provider :: Provider.t(), request :: term()) ::
+  @spec generate(provider :: Provider.t() | module(), request :: term()) ::
           {:ok, Req.Response.t(), term()}
           | {:error, Req.Response.t(), term()}
           | {:error, Exception.t()}
+
+  def generate(module, request) when is_atom(module) do
+    generate(Provider.new(module), request)
+  end
 
   def generate(%Provider{module: module, opts: opts, req: req} = provider, request) do
     opts = Keyword.put(opts, :stream, false)
@@ -68,6 +77,10 @@ defmodule ReqAI do
   @doc """
   Streams a response into an accumulator.
 
+  Accepts a configured provider or a provider module. Passing a module calls
+  `ReqAI.Provider.new/2` with no additional options on each invocation, reading
+  the provider's application-configured HTTP options at that time.
+
   Raises `ArgumentError` if the provider does not implement
   `c:ReqAI.Provider.decode_event/3`.
 
@@ -97,7 +110,7 @@ defmodule ReqAI do
   `{:error, exception, response, acc}` for a transport or decoding error.
   """
   @spec stream(
-          provider :: Provider.t(),
+          provider :: Provider.t() | module(),
           request :: term(),
           acc,
           fun :: (term(), Req.Response.t(), acc -> {:cont, acc} | {:halt, acc})
@@ -106,6 +119,10 @@ defmodule ReqAI do
           | {:error, Req.Response.t(), acc}
           | {:error, Exception.t(), Req.Response.t() | nil, acc}
         when acc: term()
+
+  def stream(module, request, acc, fun) when is_atom(module) and is_function(fun, 3) do
+    stream(Provider.new(module), request, acc, fun)
+  end
 
   def stream(%Provider{} = provider, request, acc, fun) when is_function(fun, 3) do
     module = ensure_loaded!(provider.module)

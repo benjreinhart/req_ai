@@ -32,7 +32,15 @@ config :req_ai, :providers, [
 
 Elixir merges these keyword configurations, so the runtime credentials are combined with the timeouts from `config/config.exs`.
 
-Create providers using those defaults:
+Pass provider modules directly to use those defaults:
+
+```elixir
+ReqAI.generate(ReqAI.Provider.OpenAI, model: "gpt-5.4-mini", input: "Say hello")
+```
+
+Both `ReqAI.generate/2` and `ReqAI.stream/4` accept modules and call `ReqAI.Provider.new/2` with no additional options on every invocation. This reads the current application configuration each time. Only `:req` options are read from application configuration; translators, custom telemetry, telemetry metadata, and extra provider options require explicit construction.
+
+You can also create and reuse providers to retain the configuration read at construction time:
 
 ```elixir
 openai = ReqAI.Provider.new(ReqAI.Provider.OpenAI)

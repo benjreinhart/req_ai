@@ -7,10 +7,10 @@
 ReqAI is a lightweight Elixir client for LLM APIs, built on [Req](https://github.com/wojtekmach/req).
 
 ```elixir
+alias ReqAI.Provider.OpenAI
+
 {:ok, %Req.Response{}, body} =
-  ReqAI.Provider.OpenAI
-  |> ReqAI.Provider.new()
-  |> ReqAI.generate(model: "gpt-5.4-mini", input: "Say hello")
+  ReqAI.generate(OpenAI, model: "gpt-5.4-mini", input: "Say hello")
 
 %{"output" => [%{"content" => [%{"text" => text}]}]} = body
 
@@ -33,21 +33,6 @@ See the [Getting Started guide](https://req-ai.hexdocs.pm/getting-started.html) 
 - Telemetry for lifecycle, duration, token usage, time to first chunk, etc. BYO using the [Telemetry](https://req-ai.hexdocs.pm/ReqAI.Telemetry.html) behaviour
 - Full control of the underlying Req client: auth, retries, timeouts, testing
 - Optional [translators](https://req-ai.hexdocs.pm/ReqAI.Translator.html) for your own request, response, error, and event shapes
-
-## Streaming
-
-Use the same provider and request with a callback that receives each decoded event and updates an accumulator:
-
-```elixir
-{:ok, response, events} =
-  ReqAI.stream(provider, request, [], fn event, _response, events ->
-    {:cont, [event | events]}
-  end)
-
-events = Enum.reverse(events)
-```
-
-Return `{:halt, acc}` to stop consuming the stream. Events retain the provider's structure, with SSE JSON payloads decoded in `event.data`.
 
 ## Installation
 
