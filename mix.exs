@@ -52,6 +52,7 @@ defmodule ReqAI.MixProject do
         "guides/getting-started.md",
         "guides/configuration.md",
         "guides/providers.md",
+        "guides/translators.md",
         "guides/telemetry.md"
       ],
       groups_for_extras: [
