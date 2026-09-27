@@ -1,6 +1,6 @@
 # Getting Started
 
-ReqAI provides a common calling convention on top of LLM provider APIs. Pass a provider module or a configured `ReqAI.Provider` to `ReqAI.generate/2` or `ReqAI.stream/4`.
+ReqAI provides a common calling convention on top of AI provider APIs. Pass a provider module or a configured `ReqAI.Provider` to `ReqAI.generate/2` or `ReqAI.stream/4`.
 
 > #### Req compatibility {: .info}
 >
@@ -93,7 +93,7 @@ IO.puts(haiku)
 
 Streaming takes an `accum` and callback function. The function is passed the decoded `event`, the `%Req.Response{}`, and the `accum` (same as the underlying `Req.stream/4`).
 
-ReqAI uses each provider's request and event formats. Built-in adapters convert keyword request bodies to maps and override the body's `stream` field: `false` for `ReqAI.generate/2`, `true` for `ReqAI.stream/4`. For SSE streams, they decode JSON payloads in the event's `:data` field and discard ping events, empty data, and `[DONE]` markers.
+ReqAI uses each provider's request and event formats. Built-in adapters convert keyword request bodies to maps. Streaming-capable adapters override the body's `stream` field: `false` for `ReqAI.generate/2`, `true` for `ReqAI.stream/4`. For SSE streams, they decode JSON payloads in the event's `:data` field and discard ping events, empty data, and `[DONE]` markers.
 
 ## Return values
 

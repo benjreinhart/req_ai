@@ -29,6 +29,7 @@ Start metadata includes the requested `:model`, when supplied, and these provide
 | Gemini | `"gcp.gemini"` | `"generate_content"` |
 | xAI | `"x_ai"` | `"chat"` |
 | OpenRouter | `"openrouter"` | `"chat"` |
+| TypeSafe (Jev) | `"typesafe"` | `"evaluate"` |
 
 Streaming calls also include `stream: true`.
 
@@ -38,6 +39,8 @@ Stop metadata retains the start attributes and adds:
 - `:response_model`, `:input_tokens`, `:output_tokens`, and `:finish_reasons` when available. Finish reasons are a list of provider-specific stop reasons or terminal statuses.
 
 For streams, response attributes accumulate from decoded events. Halting before usage arrives leaves token counts unavailable. Built-in extractors do not record request or response bodies.
+
+TypeSafe supports generation only. Its extractor records the response model and reported input/output token usage, but no finish reasons. State, questions, answers, probabilities, and confidence remain in the native request/response bodies and are not recorded in telemetry.
 
 ## Add custom attributes
 
