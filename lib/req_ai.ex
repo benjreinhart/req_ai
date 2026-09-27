@@ -1,6 +1,6 @@
 defmodule ReqAI do
   @moduledoc """
-  A lightweight Elixir client for LLM APIs, built on Req.
+  A lightweight Elixir client for AI APIs, built on Req.
 
   Provides consistent generation, streaming, and telemetry with provider-native
   requests and responses. Call `generate/2` or `stream/4` with a provider module

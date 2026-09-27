@@ -36,7 +36,7 @@ defmodule ReqAI.MixProject do
 
   defp package do
     [
-      description: "Req-based LLM client with streaming, telemetry, and provider-native data.",
+      description: "Extensible, Req-based client for AI APIs, using provider-native formats",
       licenses: ["Apache-2.0"],
       links: %{"GitHub" => @source_url}
     ]
