@@ -255,13 +255,13 @@ defmodule ReqAI do
 
   defp put_http_metadata(metadata, %Req.Response{status: status}) when status in 200..299 do
     metadata
-    |> Map.put(:http_status, status)
+    |> Map.put(:http_status_code, status)
     |> Map.put(:error, false)
   end
 
   defp put_http_metadata(metadata, %Req.Response{status: status}) do
     metadata
-    |> Map.put(:http_status, status)
+    |> Map.put(:http_status_code, status)
     |> Map.put(:error, true)
     |> Map.put(:error_type, Integer.to_string(status))
   end

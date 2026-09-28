@@ -17,10 +17,14 @@ defmodule ReqAI.Telemetry do
       )
 
   Metadata uses simple atom keys: `:operation`, `:provider`, `:model`,
-  `:response_model`, `:finish_reasons`, `:input_tokens`, and `:output_tokens`.
+  `:response_id`, `:response_model`, `:finish_reasons`, `:input_tokens`, and
+  `:output_tokens`. Optional usage breakdowns are `:cache_read_input_tokens`,
+  `:cache_write_input_tokens`, and `:reasoning_output_tokens`. Input totals
+  include cache reads/writes; output totals include reasoning. Breakdowns are
+  subsets of these totals. Missing values are omitted, not recorded as zero.
   Extraction coverage varies by provider and request mode; attributes are
   included when available. Streaming calls also include `stream: true`.
-  Stop metadata includes `:http_status` when an HTTP response is available,
+  Stop metadata includes `:http_status_code` when an HTTP response is available,
   `:error`, and `:error_type` on errors.
 
   Stop measurements include `:duration`. Streaming stop measurements also

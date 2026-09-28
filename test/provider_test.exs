@@ -174,6 +174,155 @@ defmodule ReqAI.ProviderTest do
     end
   end
 
+  test "response IDs and usage breakdowns have consistent meanings in responses and streams" do
+    cases = [
+      {ReqAI.Provider.Anthropic,
+       %{
+         "input_tokens" => 20,
+         "cache_read_input_tokens" => 70,
+         "cache_creation_input_tokens" => 10,
+         "output_tokens" => 30
+       },
+       %{
+         input_tokens: 100,
+         output_tokens: 30,
+         cache_read_input_tokens: 70,
+         cache_write_input_tokens: 10
+       }},
+      {ReqAI.Provider.OpenAI,
+       %{
+         "input_tokens" => 100,
+         "output_tokens" => 30,
+         "input_tokens_details" => %{"cached_tokens" => 70, "cache_write_tokens" => 10},
+         "output_tokens_details" => %{"reasoning_tokens" => 20}
+       },
+       %{
+         input_tokens: 100,
+         output_tokens: 30,
+         cache_read_input_tokens: 70,
+         cache_write_input_tokens: 10,
+         reasoning_output_tokens: 20
+       }},
+      {ReqAI.Provider.XAI,
+       %{
+         "input_tokens" => 100,
+         "output_tokens" => 30,
+         "input_tokens_details" => %{"cached_tokens" => 70},
+         "output_tokens_details" => %{"reasoning_tokens" => 20}
+       },
+       %{
+         input_tokens: 100,
+         output_tokens: 30,
+         cache_read_input_tokens: 70,
+         reasoning_output_tokens: 20
+       }},
+      {ReqAI.Provider.Gemini,
+       %{
+         "total_input_tokens" => 100,
+         "total_output_tokens" => 10,
+         "total_cached_tokens" => 70,
+         "total_thought_tokens" => 20
+       },
+       %{
+         input_tokens: 100,
+         output_tokens: 30,
+         cache_read_input_tokens: 70,
+         reasoning_output_tokens: 20
+       }},
+      {ReqAI.Provider.OpenRouter,
+       %{
+         "prompt_tokens" => 100,
+         "completion_tokens" => 30,
+         "prompt_tokens_details" => %{"cached_tokens" => 70, "cache_write_tokens" => 10},
+         "completion_tokens_details" => %{"reasoning_tokens" => 20}
+       },
+       %{
+         input_tokens: 100,
+         output_tokens: 30,
+         cache_read_input_tokens: 70,
+         cache_write_input_tokens: 10,
+         reasoning_output_tokens: 20
+       }}
+    ]
+
+    for {provider, usage, expected} <- cases do
+      body = %{"id" => "response-123", "usage" => usage}
+      response = Req.Response.new(status: 200, body: body)
+      expected = Map.merge(expected, %{response_id: "response-123", feature: :test})
+      initial = %{feature: :test}
+
+      assert provider.response_metadata(initial, response, []) == expected
+      event = usage_event(provider, body)
+      assert provider.event_metadata(initial, event, response, []) == expected
+      # Usage snapshots are cumulative, not increments.
+      assert provider.event_metadata(expected, event, response, []) == expected
+
+      assert provider.event_metadata(expected, usage_event(provider, %{}), response, []) ==
+               expected
+
+      # IDs do not depend on usage or model being present.
+      assert provider.event_metadata(
+               %{},
+               usage_event(provider, %{"id" => "response-123"}),
+               response,
+               []
+             ) ==
+               %{response_id: "response-123"}
+
+      for empty_usage <- [nil, %{}, null_usage(usage)] do
+        empty_body = %{"id" => nil, "usage" => empty_usage}
+        assert provider.response_metadata(%{}, %{response | body: empty_body}, []) == %{}
+
+        assert provider.event_metadata(%{}, usage_event(provider, empty_body), response, []) ==
+                 %{}
+      end
+
+      zero_body = %{"usage" => zero_usage(usage)}
+      zeros = Map.new(expected |> Map.drop([:response_id, :feature]), fn {key, _} -> {key, 0} end)
+      assert provider.response_metadata(%{}, %{response | body: zero_body}, []) == zeros
+      assert provider.event_metadata(%{}, usage_event(provider, zero_body), response, []) == zeros
+    end
+  end
+
+  test "Anthropic stream output updates preserve normalized input and cache usage" do
+    response = Req.Response.new(status: 200)
+
+    start =
+      usage_event(ReqAI.Provider.Anthropic, %{
+        "id" => "msg-123",
+        "usage" => %{
+          "input_tokens" => 10,
+          "cache_read_input_tokens" => 20,
+          "cache_creation_input_tokens" => 30,
+          "output_tokens" => 1
+        }
+      })
+
+    metadata = ReqAI.Provider.Anthropic.event_metadata(%{}, start, response, [])
+    delta = %{data: %{"type" => "message_delta", "usage" => %{"output_tokens" => 15}}}
+
+    assert ReqAI.Provider.Anthropic.event_metadata(metadata, delta, response, []) == %{
+             response_id: "msg-123",
+             input_tokens: 60,
+             output_tokens: 15,
+             cache_read_input_tokens: 20,
+             cache_write_input_tokens: 30
+           }
+  end
+
+  defp usage_event(ReqAI.Provider.Anthropic, body),
+    do: %{data: %{"type" => "message_start", "message" => body}}
+
+  defp usage_event(provider, body), do: finish_event(provider, body)
+
+  defp null_usage(usage), do: Map.new(usage, fn {key, _} -> {key, nil} end)
+
+  defp zero_usage(usage) do
+    Map.new(usage, fn {key, value} ->
+      {key, if(is_map(value), do: zero_usage(value), else: 0)}
+    end)
+  end
+
   test "finish reasons use each provider's API fields in responses and stream events" do
     cases = [
       {ReqAI.Provider.Anthropic, %{"stop_reason" => "end_turn"}, "end_turn"},

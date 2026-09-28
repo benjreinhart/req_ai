@@ -51,41 +51,39 @@ defmodule ReqAI.Provider.OpenRouter do
   @impl true
   def response_metadata(metadata, %Req.Response{status: status, body: body}, _opts)
       when status in 200..299 do
-    metadata
-    |> put_attr(:response_model, Map.get(body, "model"))
-    |> put_attr(:finish_reasons, finish_reasons(body))
-    |> put_attr(:input_tokens, get_in(body, ["usage", "prompt_tokens"]))
-    |> put_attr(:output_tokens, get_in(body, ["usage", "completion_tokens"]))
+    response_attributes(metadata, body)
   end
 
   def response_metadata(metadata, %Req.Response{}, _opts), do: metadata
 
   @impl true
   def event_metadata(metadata, %{data: data}, _, _) when is_map(data) do
-    metadata =
-      case data do
-        %{"model" => model} ->
-          put_attr(metadata, :response_model, model)
-
-        _ ->
-          metadata
-      end
-
-    metadata = put_attr(metadata, :finish_reasons, finish_reasons(data))
-
-    case data do
-      %{"usage" => %{"prompt_tokens" => input_tokens, "completion_tokens" => output_tokens}} ->
-        metadata
-        |> put_attr(:input_tokens, input_tokens)
-        |> put_attr(:output_tokens, output_tokens)
-
-      _ ->
-        metadata
-    end
+    response_attributes(metadata, data)
   end
 
   @impl true
   def event_metadata(metadata, _event, _response, _opts), do: metadata
+
+  defp response_attributes(metadata, body) do
+    metadata
+    |> put_attr(:response_id, Map.get(body, "id"))
+    |> put_attr(:response_model, Map.get(body, "model"))
+    |> put_attr(:finish_reasons, finish_reasons(body))
+    |> put_attr(:input_tokens, get_in(body, ["usage", "prompt_tokens"]))
+    |> put_attr(:output_tokens, get_in(body, ["usage", "completion_tokens"]))
+    |> put_attr(
+      :cache_read_input_tokens,
+      get_in(body, ["usage", "prompt_tokens_details", "cached_tokens"])
+    )
+    |> put_attr(
+      :cache_write_input_tokens,
+      get_in(body, ["usage", "prompt_tokens_details", "cache_write_tokens"])
+    )
+    |> put_attr(
+      :reasoning_output_tokens,
+      get_in(body, ["usage", "completion_tokens_details", "reasoning_tokens"])
+    )
+  end
 
   defp finish_reasons(%{"choices" => choices}) when is_list(choices) do
     reasons = for %{"finish_reason" => reason} <- choices, not is_nil(reason), do: reason

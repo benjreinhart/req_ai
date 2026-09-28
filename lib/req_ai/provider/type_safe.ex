@@ -48,9 +48,16 @@ defmodule ReqAI.Provider.TypeSafe do
   end
 
   @impl true
-  def response_metadata(metadata, %Req.Response{status: status, body: body}, _opts)
+  def response_metadata(metadata, %Req.Response{status: status, body: body} = response, _opts)
       when status in 200..299 do
+    response_id =
+      case Req.Response.get_header(response, "x-typesafe-request-id") do
+        [] -> nil
+        [request_id | _] -> request_id
+      end
+
     metadata
+    |> put_attr(:response_id, response_id)
     |> put_attr(:response_model, Map.get(body, "model"))
     |> put_attr(:input_tokens, get_in(body, ["usage", "input_tokens"]))
     |> put_attr(:output_tokens, get_in(body, ["usage", "output_tokens"]))

@@ -4,7 +4,7 @@
 [![Hex version](https://img.shields.io/hexpm/v/req_ai.svg)](https://hex.pm/packages/req_ai)
 [![Hex Docs](https://img.shields.io/badge/hex.pm-docs-green.svg?style=flat)](https://req-ai.hexdocs.pm)
 
-ReqAI is an extensible Elixir client for AI APIs, built on [Req](https://github.com/wojtekmach/req). It preserves each provider’s request and response formats, with built-in streaming and telemetry.
+ReqAI is an extensible Elixir client for AI APIs, built on [Req](https://github.com/wojtekmach/req).
 
 ```elixir
 {:ok, %Req.Response{}, %{"output" => [%{"content" => [content]}]}} =

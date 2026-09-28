@@ -147,7 +147,7 @@ defmodule ReqAITest do
                         time_to_first_chunk: time_to_first_chunk
                       },
                       %{
-                        http_status: 200,
+                        http_status_code: 200,
                         stream: true,
                         response_model: "gpt-5.4-2026-08-01",
                         input_tokens: 11,
@@ -461,7 +461,7 @@ defmodule ReqAITest do
       assert_receive {:telemetry, [:req_ai, :generate, :stop],
                       %{duration: duration, monotonic_time: monotonic_time},
                       %{
-                        http_status: 200,
+                        http_status_code: 200,
                         operation: "chat",
                         provider: "openai",
                         model: "gpt-5.4",
@@ -498,7 +498,7 @@ defmodule ReqAITest do
                       %{
                         custom_request: "gpt-5.4",
                         feature: :summarizer,
-                        http_status: 200,
+                        http_status_code: 200,
                         error: false
                       }, %{"model" => "gpt-5.4-2026-08-01", "status" => "completed"}, false}
 
@@ -524,7 +524,7 @@ defmodule ReqAITest do
       assert_receive {:telemetry, [:req_ai, :generate, :stop], _measurements,
                       %{
                         request_only: true,
-                        http_status: 200,
+                        http_status_code: 200,
                         error: false
                       }}
     end
@@ -545,7 +545,7 @@ defmodule ReqAITest do
 
       assert_receive {:telemetry, [:req_ai, :generate, :stop], _measurements,
                       %{
-                        http_status: 200,
+                        http_status_code: 200,
                         error: false,
                         feature: :summarizer
                       }}
@@ -578,7 +578,7 @@ defmodule ReqAITest do
       assert_receive {:telemetry, [:req_ai, :generate, :stop], %{duration: duration},
                       %{
                         error_type: "429",
-                        http_status: 429,
+                        http_status_code: 429,
                         provider: "openai",
                         model: "gpt-5.4",
                         error: true
@@ -609,7 +609,7 @@ defmodule ReqAITest do
                       } = metadata}
 
       refute Map.has_key?(metadata, :response_model)
-      refute Map.has_key?(metadata, :http_status)
+      refute Map.has_key?(metadata, :http_status_code)
       assert duration >= 0
     end
 

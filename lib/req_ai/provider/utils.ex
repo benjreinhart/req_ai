@@ -43,6 +43,17 @@ defmodule ReqAI.Provider.Utils do
     Keyword.get(source, key)
   end
 
+  # Missing primary counts stay unknown
+  def add_token_counts(nil, _counts), do: nil
+
+  def add_token_counts(initial, counts) do
+    initial +
+      Enum.sum_by(counts, fn
+        count when is_integer(count) -> count
+        count when is_nil(count) -> 0
+      end)
+  end
+
   def put_attr(metadata, _key, nil), do: metadata
   def put_attr(metadata, key, value), do: Map.put(metadata, key, value)
 end

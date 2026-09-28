@@ -35,12 +35,33 @@ Streaming calls also include `stream: true`.
 
 Stop metadata retains the start attributes and adds:
 
-- `:http_status` for completed HTTP responses, `:error`, and `:error_type` on errors. These describe the HTTP or transport outcome; a provider can report a failure inside a 2xx response while `:error` is `false`.
-- `:response_model`, `:input_tokens`, `:output_tokens`, and `:finish_reasons` when available. Finish reasons are a list of provider-specific stop reasons or terminal statuses.
+- `:http_status_code` for completed HTTP responses, `:error`, and `:error_type` on errors. These describe the HTTP or transport outcome; a provider can report a failure inside a 2xx response while `:error` is `false`.
+- `:response_id`, `:response_model`, `:input_tokens`, `:output_tokens`, `:cache_read_input_tokens`, `:cache_write_input_tokens`, `:reasoning_output_tokens`, and `:finish_reasons` when available. Finish reasons are a list of provider-specific stop reasons or terminal statuses.
 
 For streams, response attributes accumulate from decoded events. Halting before usage arrives leaves token counts unavailable. Built-in extractors do not record request or response bodies.
 
 TypeSafe supports generation only. Its extractor records the response model and reported input/output token usage, but no finish reasons. State, questions, answers, probabilities, and confidence remain in the native request/response bodies and are not recorded in telemetry.
+
+### Response IDs and token counts
+
+These fields are metadata in both generation and streaming events:
+
+- `:response_id` is the provider's message, response, completion, or interaction ID, not an HTTP request ID.
+- `:input_tokens` includes cache reads and cache writes. `:cache_read_input_tokens` counts input tokens served from cache; `:cache_write_input_tokens` counts input tokens written to cache.
+- `:output_tokens` includes reasoning/thinking tokens. `:reasoning_output_tokens` is the separately reported reasoning/thinking portion.
+
+Breakdowns are subsets of the totals: do not add them to the totals again. Anthropic's input total is normalized by adding its cache read and cache creation counts to its uncached input count. Gemini's output total adds its separately reported thought tokens. Other adapters retain the provider's inclusive totals.
+
+| Adapter | Response ID | Cache reads | Cache writes | Reasoning output |
+| --- | --- | --- | --- | --- |
+| Anthropic | Yes | Yes | Yes | — |
+| OpenAI | Yes | Yes | Yes | Yes |
+| Gemini | Yes | Yes | — | Yes |
+| xAI | Yes | Yes | — | Yes |
+| OpenRouter | Yes | Yes | Yes | Yes |
+| TypeSafe | — | — | — | — |
+
+Fields are emitted only when reported; unsupported, missing, or null breakdowns are omitted, while reported zeros are preserved. Streaming usage snapshots replace earlier counts rather than being summed. Availability can depend on the model and how much of a stream was consumed.
 
 ## Add custom attributes
 

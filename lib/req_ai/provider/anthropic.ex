@@ -58,25 +58,20 @@ defmodule ReqAI.Provider.Anthropic do
     stop_reason = Map.get(body, "stop_reason")
 
     metadata
+    |> put_attr(:response_id, Map.get(body, "id"))
     |> put_attr(:response_model, Map.get(body, "model"))
     |> put_attr(:finish_reasons, stop_reason && [stop_reason])
-    |> put_attr(:input_tokens, get_in(body, ["usage", "input_tokens"]))
-    |> put_attr(:output_tokens, get_in(body, ["usage", "output_tokens"]))
+    |> usage_metadata(Map.get(body, "usage"))
   end
 
   def response_metadata(metadata, %Req.Response{}, _opts), do: metadata
 
   @impl true
   def event_metadata(metadata, %{data: %{"type" => "message_start", "message" => message}}, _, _) do
-    case message do
-      %{"model" => model, "usage" => %{"input_tokens" => input_tokens}} ->
-        metadata
-        |> put_attr(:response_model, model)
-        |> put_attr(:input_tokens, input_tokens)
-
-      _ ->
-        metadata
-    end
+    metadata
+    |> put_attr(:response_id, Map.get(message, "id"))
+    |> put_attr(:response_model, Map.get(message, "model"))
+    |> usage_metadata(Map.get(message, "usage"))
   end
 
   @impl true
@@ -90,4 +85,20 @@ defmodule ReqAI.Provider.Anthropic do
 
   @impl true
   def event_metadata(metadata, _event, _response, _opts), do: metadata
+
+  defp usage_metadata(metadata, usage) do
+    usage = usage || %{}
+
+    input_tokens =
+      add_token_counts(usage["input_tokens"], [
+        usage["cache_read_input_tokens"],
+        usage["cache_creation_input_tokens"]
+      ])
+
+    metadata
+    |> put_attr(:input_tokens, input_tokens)
+    |> put_attr(:output_tokens, usage["output_tokens"])
+    |> put_attr(:cache_read_input_tokens, usage["cache_read_input_tokens"])
+    |> put_attr(:cache_write_input_tokens, usage["cache_creation_input_tokens"])
+  end
 end
