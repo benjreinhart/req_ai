@@ -1,6 +1,6 @@
 # Telemetry
 
-ReqAI emits telemetry by default. Anthropic, OpenAI, Gemini, xAI, and OpenRouter use the same event names and add metadata from their native requests and responses.
+ReqAI emits telemetry by default. Anthropic, OpenAI, Gemini, and OpenRouter use the same event names and add metadata from their native requests and responses.
 
 ## Default events
 
@@ -27,7 +27,6 @@ Start metadata includes the requested `:model`, when supplied, and these provide
 | Anthropic | `"anthropic"` | `"chat"` |
 | OpenAI | `"openai"` | `"chat"` |
 | Gemini | `"gcp.gemini"` | `"generate_content"` |
-| xAI | `"x_ai"` | `"chat"` |
 | OpenRouter | `"openrouter"` | `"chat"` |
 | TypeSafe (Jev) | `"typesafe"` | `"evaluate"` |
 
@@ -57,7 +56,6 @@ Breakdowns are subsets of the totals: do not add them to the totals again. Anthr
 | Anthropic | Yes | Yes | Yes | — |
 | OpenAI | Yes | Yes | Yes | Yes |
 | Gemini | Yes | Yes | — | Yes |
-| xAI | Yes | Yes | — | Yes |
 | OpenRouter | Yes | Yes | Yes | Yes |
 | TypeSafe | — | — | — | — |
 

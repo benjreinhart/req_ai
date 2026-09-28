@@ -80,8 +80,7 @@ defmodule ReqAI.ProviderTest do
           ReqAI.Provider.Anthropic,
           ReqAI.Provider.Gemini,
           ReqAI.Provider.OpenAI,
-          ReqAI.Provider.OpenRouter,
-          ReqAI.Provider.XAI
+          ReqAI.Provider.OpenRouter
         ] do
       request = provider.build(Req.new(), [model: "test-model", stream: true], stream: false)
 
@@ -106,8 +105,7 @@ defmodule ReqAI.ProviderTest do
       {ReqAI.Provider.Anthropic, "anthropic", "chat"},
       {ReqAI.Provider.Gemini, "gcp.gemini", "generate_content"},
       {ReqAI.Provider.OpenAI, "openai", "chat"},
-      {ReqAI.Provider.OpenRouter, "openrouter", "chat"},
-      {ReqAI.Provider.XAI, "x_ai", "chat"}
+      {ReqAI.Provider.OpenRouter, "openrouter", "chat"}
     ]
 
     Enum.each(providers, fn {provider, provider_name, operation_name} ->
@@ -151,7 +149,6 @@ defmodule ReqAI.ProviderTest do
     providers = [
       {ReqAI.Provider.Anthropic, "input_tokens", "output_tokens"},
       {ReqAI.Provider.OpenAI, "input_tokens", "output_tokens"},
-      {ReqAI.Provider.XAI, "input_tokens", "output_tokens"},
       {ReqAI.Provider.Gemini, "total_input_tokens", "total_output_tokens"},
       {ReqAI.Provider.OpenRouter, "prompt_tokens", "completion_tokens"}
     ]
@@ -201,19 +198,6 @@ defmodule ReqAI.ProviderTest do
          output_tokens: 30,
          cache_read_input_tokens: 70,
          cache_write_input_tokens: 10,
-         reasoning_output_tokens: 20
-       }},
-      {ReqAI.Provider.XAI,
-       %{
-         "input_tokens" => 100,
-         "output_tokens" => 30,
-         "input_tokens_details" => %{"cached_tokens" => 70},
-         "output_tokens_details" => %{"reasoning_tokens" => 20}
-       },
-       %{
-         input_tokens: 100,
-         output_tokens: 30,
-         cache_read_input_tokens: 70,
          reasoning_output_tokens: 20
        }},
       {ReqAI.Provider.Gemini,
@@ -329,7 +313,6 @@ defmodule ReqAI.ProviderTest do
       {ReqAI.Provider.OpenAI,
        %{"status" => "incomplete", "incomplete_details" => %{"reason" => "max_output_tokens"}},
        "max_output_tokens"},
-      {ReqAI.Provider.XAI, %{"status" => "completed"}, "completed"},
       {ReqAI.Provider.Gemini, %{"status" => "completed"}, "completed"},
       {ReqAI.Provider.OpenRouter,
        %{"choices" => [%{"finish_reason" => "stop", "native_finish_reason" => "end_turn"}]},
@@ -376,7 +359,6 @@ defmodule ReqAI.ProviderTest do
       {ReqAI.Provider.OpenAI, %{"status" => nil}},
       {ReqAI.Provider.OpenAI, %{"status" => "queued"}},
       {ReqAI.Provider.OpenAI, %{"status" => "in_progress"}},
-      {ReqAI.Provider.XAI, %{"status" => "in_progress"}},
       {ReqAI.Provider.Gemini, %{"status" => "in_progress"}},
       {ReqAI.Provider.OpenRouter, %{"choices" => []}},
       {ReqAI.Provider.OpenRouter, %{"choices" => nil}},
@@ -460,13 +442,11 @@ defmodule ReqAI.ProviderTest do
       }
     }
 
-    for provider <- [ReqAI.Provider.OpenAI, ReqAI.Provider.XAI] do
-      assert provider.event_metadata(%{}, responses_event, response, []) == %{
-               response_model: "response-model",
-               input_tokens: 12,
-               output_tokens: 8
-             }
-    end
+    assert ReqAI.Provider.OpenAI.event_metadata(%{}, responses_event, response, []) == %{
+             response_model: "response-model",
+             input_tokens: 12,
+             output_tokens: 8
+           }
 
     gemini_event = %{
       data: %{
@@ -512,8 +492,7 @@ defmodule ReqAI.ProviderTest do
           ReqAI.Provider.Anthropic,
           ReqAI.Provider.Gemini,
           ReqAI.Provider.OpenAI,
-          ReqAI.Provider.OpenRouter,
-          ReqAI.Provider.XAI
+          ReqAI.Provider.OpenRouter
         ] do
       assert provider.event_metadata(%{}, %{data: %{}}, response, []) == %{}
       assert provider.event_metadata(%{}, :unknown, response, []) == %{}
@@ -525,8 +504,7 @@ defmodule ReqAI.ProviderTest do
       ReqAI.Provider.Anthropic,
       ReqAI.Provider.Gemini,
       ReqAI.Provider.OpenAI,
-      ReqAI.Provider.OpenRouter,
-      ReqAI.Provider.XAI
+      ReqAI.Provider.OpenRouter
     ]
 
     response = Req.Response.new(status: 200)

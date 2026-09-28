@@ -21,7 +21,7 @@ See the [Getting Started guide](https://req-ai.hexdocs.pm/getting-started.html) 
 ## Features
 
 - Generate and stream with one calling convention, using each provider's request and response formats.
-- Built-in adapters for Anthropic, OpenAI, Gemini, xAI, OpenRouter, and TypeSafe. Add custom adapters with the [Provider](https://req-ai.hexdocs.pm/ReqAI.Provider.html) behaviour.
+- Built-in adapters for Anthropic, OpenAI, Gemini, OpenRouter, and TypeSafe. Add custom adapters with the [Provider](https://req-ai.hexdocs.pm/ReqAI.Provider.html) behaviour.
 - Telemetry for request lifecycle, duration, token usage, and time to first chunk. Customize metadata with the [Telemetry](https://req-ai.hexdocs.pm/ReqAI.Telemetry.html) behaviour.
 - Configure authentication, retries, timeouts, and testing through Req.
 - Optional [translators](https://req-ai.hexdocs.pm/ReqAI.Translator.html) for your own request, response, error, and event shapes.
